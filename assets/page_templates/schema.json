@@ -1,0 +1,54 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://amentilabs.local/panini-wc26/page-template.schema.json",
+  "title": "Panini WC26 album page template",
+  "description": "Normalized slot layout for a single album spread. Coordinates are fractions of page width/height (0–1). Consumed by lib/ml/page_scan_service.dart.",
+  "type": "object",
+  "required": ["id", "team_code", "team_name", "layout", "slots"],
+  "additionalProperties": false,
+  "properties": {
+    "id": {
+      "type": "string",
+      "description": "Stable template id, e.g. team_spread_bra or fwc_intro"
+    },
+    "team_code": {
+      "type": "string",
+      "description": "Catalog team code (BRA, USA, FWC, …)"
+    },
+    "team_name": {
+      "type": "string",
+      "description": "Display name for UI"
+    },
+    "layout": {
+      "type": "string",
+      "description": "Layout key, e.g. team_spread_4x5 or fwc_4x5"
+    },
+    "slots": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/slot" }
+    }
+  },
+  "$defs": {
+    "slot": {
+      "type": "object",
+      "required": ["index", "sticker_code", "x", "y", "w", "h"],
+      "additionalProperties": false,
+      "properties": {
+        "index": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Zero-based slot order on the spread"
+        },
+        "sticker_code": {
+          "type": "string",
+          "description": "Catalog sticker code placed in this slot (e.g. BRA14)"
+        },
+        "x": { "type": "number", "minimum": 0, "maximum": 1 },
+        "y": { "type": "number", "minimum": 0, "maximum": 1 },
+        "w": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 },
+        "h": { "type": "number", "exclusiveMinimum": 0, "maximum": 1 }
+      }
+    }
+  }
+}
