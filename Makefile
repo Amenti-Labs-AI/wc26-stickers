@@ -21,7 +21,7 @@ help: ## Show dev commands
 	@printf "    make ios              iOS Simulator (collection; Scan → pick photo)\n"
 	@printf "    make device           physical iPhone (camera scan)\n"
 	@printf "    make android          Android device or emulator\n"
-	@printf "    make android-device   physical Android only (Pixel / GrapheneOS)\n"
+	@printf "    make android-device   physical Android only (Pixel 4a / stock Android)\n"
 	@printf "    make android-devices  list adb + flutter devices\n"
 	@printf "    make android-pull-db  pull device SQLite → data/device/\n"
 	@printf "    make android-push-db  push data/device/ SQLite → device\n"

@@ -14,7 +14,7 @@ make scan-check   # host OCR pipeline tests (~15s) — run before deploy
 
 ```bash
 make device           # iPhone via USB
-make android-device   # Android via USB (Pixel / GrapheneOS)
+make android-device   # Android via USB (Pixel 4a / stock Android)
 make scan-check-device   # 21 integration tests on USB Android/iOS
 ```
 
@@ -63,7 +63,7 @@ sudo xcodebuild -runFirstLaunch
 
 Connect iPhone via USB, unlock, trust this Mac, then `make device`.
 
-**Android (Pixel 4 / GrapheneOS):** [pixel4-grapheneos-testing.md](android/pixel4-grapheneos-testing.md) — `make android-device`, `make android-install-release`
+**Android (Pixel 4a / stock Android):** [pixel4a-android-testing.md](android/pixel4a-android-testing.md) — `make android-device`, `make android-install`
 
 ## Scan pipeline
 

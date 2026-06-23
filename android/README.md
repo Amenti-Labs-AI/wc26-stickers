@@ -12,7 +12,7 @@ Shared Dart + global assets live at repo root: `lib/`, `assets/`.
 
 | Path | Purpose |
 |------|---------|
-| **`scripts/`** | `make android`, `make android-device`, APK build/install — see [docs/android/pixel4-grapheneos-testing.md](../docs/android/pixel4-grapheneos-testing.md) |
+| **`scripts/`** | `make android`, `make android-device`, APK build/install — see [docs/android/pixel4a-android-testing.md](../docs/android/pixel4a-android-testing.md) |
 | **`build.gradle.kts`**, **`settings.gradle.kts`**, **`gradle/`** | Gradle build shell |
 | **`gradlew`** | Wrapper |
 

@@ -21,11 +21,11 @@ if [[ -z "$DEVICE" ]]; then
   echo "" >&2
   echo "No Android device found. Check:" >&2
   echo "  • USB cable, unlocked phone, USB debugging enabled" >&2
-  echo "  • GrapheneOS: Settings → System → Developer options → USB debugging" >&2
+  echo "  • Stock Android: Settings → System → Developer options → USB debugging" >&2
   echo "  • Accept the RSA fingerprint prompt on the phone" >&2
   echo "  • adb devices  (should show 'device', not 'unauthorized')" >&2
   echo "" >&2
-  echo "See docs/android/pixel4-grapheneos-testing.md" >&2
+  echo "See docs/android/pixel4a-android-testing.md" >&2
   exit 1
 fi
 

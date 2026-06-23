@@ -26,7 +26,8 @@ echo "Stopping app on $DEVICE…"
 adb -s "$DEVICE" shell am force-stop "$PKG" 2>/dev/null || true
 
 echo "Pushing $SRC → device $DB…"
-if ! adb -s "$DEVICE" exec-out run-as "$PKG" sh -c "cat > $DB" < "$SRC"; then
+adb -s "$DEVICE" shell run-as "$PKG" mkdir -p databases 2>/dev/null || true
+if ! cat "$SRC" | adb -s "$DEVICE" shell run-as "$PKG" tee "$DB" > /dev/null; then
   echo "Failed to push $DB (debug build required for run-as)." >&2
   exit 1
 fi
