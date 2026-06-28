@@ -27,6 +27,12 @@ class Sticker {
   bool get isOwned => ownedCount >= 1;
   bool get isDuplicate => ownedCount >= 2;
 
+  /// Extra copies beyond the first (user-facing: Swaps).
+  int get swapCount => ownedCount > 1 ? ownedCount - 1 : 0;
+
+  bool isNeed(Set<String> scannedMissing) =>
+      scannedMissing.contains(code) || ownedCount == 0;
+
   String get displayName {
     if (playerName != null && playerName!.isNotEmpty) {
       return playerName!;

@@ -400,6 +400,45 @@ class AppDatabase {
     );
   }
 
+  /// Sets owned/need status and swap count in one transaction.
+  Future<void> applyStickerState(
+    String code, {
+    required bool need,
+    int swaps = 0,
+  }) async {
+    final upper = code.toUpperCase();
+    final db = await database;
+    final now = DateTime.now().millisecondsSinceEpoch;
+    await db.transaction((txn) async {
+      if (need) {
+        await txn.insert(
+          'scanned_missing',
+          {'code': upper, 'last_seen_at': now},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+        await txn.update(
+          'collection',
+          {'owned_count': 0},
+          where: 'code = ?',
+          whereArgs: [upper],
+        );
+      } else {
+        await txn.delete(
+          'scanned_missing',
+          where: 'code = ?',
+          whereArgs: [upper],
+        );
+        final ownedCount = (1 + swaps).clamp(1, 999);
+        await txn.update(
+          'collection',
+          {'owned_count': ownedCount},
+          where: 'code = ?',
+          whereArgs: [upper],
+        );
+      }
+    });
+  }
+
   /// Swipe Owned: clear missing and ensure owned_count >= 1.
   Future<void> markStickerOwned(String code) async {
     final upper = code.toUpperCase();

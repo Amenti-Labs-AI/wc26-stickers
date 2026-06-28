@@ -20,7 +20,7 @@ enum ScanEngine {
               'Camera frames are analyzed with on-device text recognition.',
               'Empty slots print the team code and number (e.g. MEX 4) in the placeholder.',
               'The scanner locks to your team page and filters matches to that team.',
-              'Confirmed missing stickers are saved to your collection automatically.',
+              'Confirmed need stickers are saved to your collection automatically.',
             ],
       };
 

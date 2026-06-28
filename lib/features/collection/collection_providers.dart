@@ -45,6 +45,14 @@ final scannedMissingByTeamProvider =
   );
 });
 
+/// Teams with at least one swap (owned_count >= 2).
+final swapsByTeamProvider =
+    FutureProvider<Map<String, List<Sticker>>>((ref) async {
+  return AppDatabase.instance.getGroupedByTeam(
+    filter: StickerFilter.duplicates,
+  );
+});
+
 class StickerQuery {
   const StickerQuery({this.search, this.filter = StickerFilter.all});
 
@@ -103,6 +111,20 @@ class CollectionNotifier extends StateNotifier<AsyncValue<void>> {
     state = const AsyncLoading();
     try {
       await _db.mergeScannedMissingCodes([code]);
+      state = const AsyncData(null);
+    } catch (e, st) {
+      state = AsyncError(e, st);
+    }
+  }
+
+  Future<void> applyStickerState(
+    String code, {
+    required bool need,
+    int swaps = 0,
+  }) async {
+    state = const AsyncLoading();
+    try {
+      await _db.applyStickerState(code, need: need, swaps: swaps);
       state = const AsyncData(null);
     } catch (e, st) {
       state = AsyncError(e, st);

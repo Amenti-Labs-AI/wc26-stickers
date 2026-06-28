@@ -153,9 +153,9 @@ class AppStatPill extends StatelessWidget {
   }
 }
 
-/// Horizontal swipe hint shown once in collection.
-class SwipeHintBanner extends StatelessWidget {
-  const SwipeHintBanner({super.key});
+/// Tap hint shown in collection.
+class CollectionTapHintBanner extends StatelessWidget {
+  const CollectionTapHintBanner({super.key});
 
   @override
   Widget build(BuildContext context) {
@@ -172,11 +172,11 @@ class SwipeHintBanner extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
           child: Row(
             children: [
-              Icon(Icons.swipe, size: 20, color: scheme.primary),
+              Icon(Icons.touch_app_rounded, size: 20, color: scheme.primary),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Swipe to reveal actions · tap Owned or Missing',
+                  'Tap a sticker to set Owned, Need, or Swaps',
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                         color: scheme.onSurfaceVariant,
                       ),

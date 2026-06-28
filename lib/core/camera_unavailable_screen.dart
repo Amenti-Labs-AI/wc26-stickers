@@ -30,7 +30,7 @@ class CameraUnavailableScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             Text(
-              'Collection, Teams, Missing, and Settings work without a camera.',
+              'Collection, Home, and Settings work without a camera.',
               style: Theme.of(context).textTheme.bodySmall,
               textAlign: TextAlign.center,
             ),

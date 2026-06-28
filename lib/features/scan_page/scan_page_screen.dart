@@ -225,8 +225,8 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
 
       final codes = result.missingCodes.toList()..sort();
       final status = codes.isEmpty
-          ? 'Scanning for missing stickers…'
-          : '${codes.length} missing · ${codes.join(' ')}';
+          ? 'Scanning for need stickers…'
+          : '${codes.length} need · ${codes.join(' ')}';
 
       final analysisSize = result.analysisWidth > 0 && result.analysisHeight > 0
           ? Size(
@@ -304,6 +304,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.invalidate(scannedMissingByTeamProvider);
+      ref.invalidate(swapsByTeamProvider);
       ref.invalidate(scannedMissingCodesProvider);
       ref.invalidate(groupedStickersProvider);
       ref.invalidate(collectionStatsProvider);

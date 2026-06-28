@@ -34,15 +34,23 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 
 **Live scan (Brazil)**
 
-![Live scan on Brazil team page — missing slots highlighted](docs/screenshots/bra-scan-1.png)
+![Live scan on Brazil team page — need slots highlighted](docs/screenshots/bra-scan-1.png)
 
 **Live scan (Switzerland)**
 
-![Live scan on Switzerland team page — missing slots highlighted](docs/screenshots/sui-scan-2.png)
+![Live scan on Switzerland team page — need slots highlighted](docs/screenshots/sui-scan-2.png)
 
-**Filtered collection**
+**Home**
 
-![Collection with team or status filter applied](docs/screenshots/collection-filter.png)
+![Home — album progress, need and swaps summary](docs/screenshots/home.png)
+
+**Collection — team page**
+
+![Collection team grid with owned and need stickers](docs/screenshots/collection-team.png)
+
+**Collection — edit sticker**
+
+![Sticker edit sheet for owned, need, and swaps](docs/screenshots/collection-edit.png)
 
 ## Development
 

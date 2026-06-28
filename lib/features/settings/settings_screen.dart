@@ -97,7 +97,7 @@ class SettingsScreen extends ConsumerWidget {
             children: [
               ListTile(
                 leading: Icon(Icons.upload_file_rounded, color: scheme.primary),
-                title: const Text('Export missing list'),
+                title: const Text('Export need list'),
                 subtitle: const Text('Shareable backup code (no file access)'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _exportMissingList(context),
@@ -105,7 +105,7 @@ class SettingsScreen extends ConsumerWidget {
               const Divider(height: 1, indent: 16, endIndent: 16),
               ListTile(
                 leading: Icon(Icons.download_rounded, color: scheme.primary),
-                title: const Text('Import missing list'),
+                title: const Text('Import need list'),
                 subtitle: const Text('Paste backup code from another device'),
                 trailing: const Icon(Icons.chevron_right),
                 onTap: () => _importMissingList(context, ref),
@@ -212,8 +212,8 @@ class SettingsScreen extends ConsumerWidget {
                 Text('Backup code', style: theme.textTheme.titleMedium),
                 const SizedBox(height: 8),
                 Text(
-                  'Copy or share this code to transfer your missing list. '
-                  'Import it on another device under Settings → Import missing list.',
+                  'Copy or share this code to transfer your need list. '
+                  'Import it on another device under Settings → Import need list.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -245,7 +245,7 @@ class SettingsScreen extends ConsumerWidget {
                       child: FilledButton.icon(
                         onPressed: () => Share.share(
                           code,
-                          subject: 'WC26 missing stickers backup',
+                          subject: 'WC26 need stickers backup',
                         ),
                         icon: const Icon(Icons.share_rounded, size: 18),
                         label: const Text('Share'),
@@ -341,9 +341,9 @@ class SettingsScreen extends ConsumerWidget {
     final replace = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Import missing list?'),
+        title: const Text('Import need list?'),
         content: const Text(
-          'Choose whether to merge with your current scanned-missing list '
+          'Choose whether to merge with your current need list '
           'or replace it entirely.',
         ),
         actions: [
@@ -373,7 +373,7 @@ class SettingsScreen extends ConsumerWidget {
       _invalidateMissingProviders(ref);
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Imported $count missing sticker codes')),
+          SnackBar(content: Text('Imported $count need sticker codes')),
         );
       }
     } on FormatException catch (e) {
@@ -390,6 +390,7 @@ class SettingsScreen extends ConsumerWidget {
     ref.invalidate(collectionStatsProvider);
     ref.invalidate(scannedMissingCodesProvider);
     ref.invalidate(scannedMissingByTeamProvider);
+    ref.invalidate(swapsByTeamProvider);
     ref.invalidate(groupedStickersProvider);
   }
 
@@ -400,7 +401,7 @@ class SettingsScreen extends ConsumerWidget {
       builder: (ctx) => AlertDialog(
         title: const Text('Reset collection?'),
         content: const Text(
-          'Restores all stickers to owned and clears scanned missing.',
+          'Restores all stickers to owned and clears need list.',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Cancel')),
