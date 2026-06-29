@@ -36,7 +36,6 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 | **Local DB** | SQLite via `sqflite` |
 | **State** | Riverpod |
 | **Charts** | `fl_chart` |
-| **CI** | GitHub Actions — analyze + unit tests |
 
 ## Gallery
 
@@ -85,7 +84,7 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 </tr>
 <tr>
 <td align="center" colspan="3">
-<a href="docs/screenshots/collection-stats-complete.png"><img src="docs/screenshots/collection-stats-complete.png" width="100" alt="Stats complete"/></a><br/>
+<a href="docs/screenshots/collection-stats-complete.png"><img src="docs/screenshots/collection-stats-complete.png" width="200" alt="Stats complete"/></a><br/>
 <sub>Stats - Complete</sub>
 </td>
 </tr>
