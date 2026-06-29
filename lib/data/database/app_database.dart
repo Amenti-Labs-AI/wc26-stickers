@@ -499,7 +499,7 @@ class AppDatabase {
     final stickers = await getAllStickers(filter: filter);
     final byTeam = <String, List<Sticker>>{};
     for (final s in stickers) {
-      byTeam.putIfAbsent('${s.teamCode}|${s.teamName}', () => []).add(s);
+      byTeam.putIfAbsent(s.teamCode, () => []).add(s);
     }
     for (final list in byTeam.values) {
       list.sort((a, b) => a.slotNumber.compareTo(b.slotNumber));

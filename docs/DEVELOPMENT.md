@@ -78,28 +78,23 @@ make scan-check-device   # USB device (optional, when OCR behavior changed)
 
 ## README screenshots
 
-The app does not write screenshots to disk. Capture the **current screen** from a connected device:
-
-**Android (USB):**
+Pull from the phone’s **Screenshots** folder or capture the current screen:
 
 ```bash
-# Open Home tab, then:
+# Pull recent captures (Pixel: /sdcard/Pictures/Screenshots/)
+adb pull /sdcard/Pictures/Screenshots/Screenshot_*.png docs/screenshots/_incoming/
+
+# Or capture live (open the screen first):
 make android-screenshot NAME=home
-# Open Scan tab with overlays visible:
-make android-screenshot NAME=scan
-# Open Collection tab:
-make android-screenshot NAME=collection
+make android-screenshot NAME=collection-team
+make android-screenshot NAME=collection-stats-overview
 ```
 
-**iOS (Simulator or USB iPhone):**
+Resize for README (270×585): `sips -z 585 270 docs/screenshots/<name>.png`
 
-```bash
-make ios-screenshot NAME=home
-make ios-screenshot NAME=scan
-make ios-screenshot NAME=collection
-```
+Expected names: `home`, `collection-team`, `collection-need`, `collection-edit`, `collection-stats-{overview,swaps,need,complete}`, `bra-scan-1`, `sui-scan-2`.
 
-Files land in [`docs/screenshots/`](../docs/screenshots/) and render in [README](../README.md).
+Files land in [`docs/screenshots/`](../docs/screenshots/) and render in the [README](../README.md) gallery table.
 
 Manual Android one-liner: `adb exec-out screencap -p > docs/screenshots/home.png`
 
@@ -121,10 +116,6 @@ Manual Android one-liner: `adb exec-out screencap -p > docs/screenshots/home.png
 | `tooling/` | Catalog/template generators |
 
 Platform roots (`ios/Runner`, `android/app`, …) are **symlinks** into `src/` for Flutter CLI. Edit deployable sources under `src/`.
-
-## CI
-
-GitHub Actions: analyze + test on Ubuntu (`.github/workflows/ci.yml`).
 
 ## License
 

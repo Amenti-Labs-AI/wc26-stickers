@@ -33,6 +33,36 @@ void main() {
       expect(sticker.isNeed({code}), isTrue);
       expect(sticker.copyWith(ownedCount: 0).isNeed({}), isTrue);
     });
+
+    test('teamSectionTitle maps special album sections', () {
+      const cc = Sticker(
+        code: 'CC1',
+        teamCode: 'CC',
+        teamName: 'Spain',
+        slotNumber: 1,
+        category: 'coca_cola',
+        group: 'Coca-Cola',
+      );
+      const fwc = Sticker(
+        code: 'FWC0',
+        teamCode: 'FWC',
+        teamName: 'FIFA World Cup',
+        slotNumber: 0,
+        category: 'fwc_foil',
+        group: 'FWC',
+      );
+      const mex = Sticker(
+        code: 'MEX1',
+        teamCode: 'MEX',
+        teamName: 'Mexico',
+        slotNumber: 1,
+        category: 'player',
+        group: 'Group A',
+      );
+      expect(cc.teamSectionTitle, 'Coca-Cola');
+      expect(fwc.teamSectionTitle, 'FIFA World Cup');
+      expect(mex.teamSectionTitle, 'Mexico');
+    });
   });
 
   group('applyStickerState owned_count mapping', () {

@@ -11,6 +11,7 @@ Future<void> showStickerEditSheet({
   required Set<String> scannedMissing,
   required Future<void> Function() onSaved,
 }) {
+  FocusManager.instance.primaryFocus?.unfocus();
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -21,7 +22,7 @@ Future<void> showStickerEditSheet({
       ref: ref,
       onSaved: onSaved,
     ),
-  );
+  ).whenComplete(() => FocusManager.instance.primaryFocus?.unfocus());
 }
 
 class _StickerEditSheet extends StatefulWidget {

@@ -153,36 +153,51 @@ class AppStatPill extends StatelessWidget {
   }
 }
 
-/// Tap hint shown in collection.
-class CollectionTapHintBanner extends StatelessWidget {
-  const CollectionTapHintBanner({super.key});
+/// Entry point to open collection stats from the Collection tab.
+class CollectionStatsEntry extends StatelessWidget {
+  const CollectionStatsEntry({super.key, required this.onTap});
+
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(AppSpacing.page, 0, AppSpacing.page, 8),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: scheme.surfaceContainerHigh,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-          child: Row(
-            children: [
-              Icon(Icons.touch_app_rounded, size: 20, color: scheme.primary),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Tap a sticker to set Owned, Need, or Swaps',
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                        color: scheme.onSurfaceVariant,
-                      ),
-                ),
+      child: Material(
+        color: scheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.5)),
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+              child: Row(
+                children: [
+                  Icon(Icons.bar_chart_rounded, size: 20, color: scheme.primary),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      'Collection stats',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: scheme.onSurfaceVariant,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 20,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
         ),
       ),

@@ -7,6 +7,7 @@ import '../../core/app_widgets.dart';
 import '../../core/sticker_search_query.dart';
 import '../../data/database/app_database.dart';
 import 'collection_providers.dart';
+import 'collection_stats_sheet.dart';
 import 'sticker_team_grid.dart';
 
 class CollectionScreen extends ConsumerStatefulWidget {
@@ -72,10 +73,21 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             children: [
               TextField(
                 controller: _searchController,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   hintText: 'Team code (BRA)',
-                  prefixIcon: Icon(Icons.search_rounded),
+                  prefixIcon: const Icon(Icons.search_rounded),
                   counterText: '',
+                  suffixIcon: _searchController.text.isNotEmpty
+                      ? IconButton(
+                          icon: const Icon(Icons.clear_rounded),
+                          tooltip: 'Clear',
+                          onPressed: () {
+                            _searchController.clear();
+                            FocusScope.of(context).unfocus();
+                            setState(() {});
+                          },
+                        )
+                      : null,
                 ),
                 maxLength: 3,
                 maxLengthEnforcement: MaxLengthEnforcement.none,
@@ -105,15 +117,18 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
             ],
           ),
         ),
-        if (!_needOnly) const CollectionTapHintBanner(),
+        if (!_needOnly)
+          CollectionStatsEntry(
+            onTap: () => showCollectionStatsSheet(context: context, ref: ref),
+          ),
         Expanded(
           child: groupedAsync.when(
             data: (grouped) {
               final scanned = scannedAsync.valueOrNull ?? const {};
               final teamKeys = grouped.keys.toList()
                 ..sort((a, b) {
-                  final nameA = grouped[a]!.first.teamName;
-                  final nameB = grouped[b]!.first.teamName;
+                  final nameA = grouped[a]!.first.teamSectionTitle;
+                  final nameB = grouped[b]!.first.teamSectionTitle;
                   final cmp = nameA.compareTo(nameB);
                   return cmp != 0 ? cmp : a.compareTo(b);
                 });
@@ -152,7 +167,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
                   itemBuilder: (context, i) {
                     final teamCode = teamKeys[i];
                     final stickers = grouped[teamCode]!;
-                    final teamName = stickers.first.teamName;
+                    final teamName = stickers.first.teamSectionTitle;
                     final ownedCount = stickers
                         .where((s) => !s.isNeed(scanned))
                         .length;
@@ -207,6 +222,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     ref.invalidate(scannedMissingCodesProvider);
     ref.invalidate(scannedMissingByTeamProvider);
     ref.invalidate(swapsByTeamProvider);
+    ref.invalidate(teamCollectionStatsProvider);
     ref.invalidate(collectionStatsProvider);
     ref.invalidate(groupedStickersProvider);
     ref.invalidate(stickersProvider);

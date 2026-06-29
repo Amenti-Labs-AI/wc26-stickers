@@ -33,6 +33,18 @@ class Sticker {
   bool isNeed(Set<String> scannedMissing) =>
       scannedMissing.contains(code) || ownedCount == 0;
 
+  /// Album section title for grouping UI (CC/FWC are not national teams).
+  String get teamSectionTitle {
+    switch (teamCode) {
+      case 'FWC':
+        return 'FIFA World Cup';
+      case 'CC':
+        return 'Coca-Cola';
+      default:
+        return teamName;
+    }
+  }
+
   String get displayName {
     if (playerName != null && playerName!.isNotEmpty) {
       return playerName!;

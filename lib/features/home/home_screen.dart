@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../../core/album_breakdown.dart';
 import '../../core/app_theme.dart';
 import '../../core/missing_stickers_codec.dart';
 import '../../data/database/app_database.dart';
@@ -86,8 +87,8 @@ class _HomeSummaryBody extends StatelessWidget {
   Widget build(BuildContext context) {
     final need = needAsync.valueOrNull ?? const {};
     final swaps = swapsAsync.valueOrNull ?? const {};
-    final needBreakdown = _NeedBreakdown.from(need);
-    final swapBreakdown = _SwapBreakdown.from(swaps);
+    final needBreakdown = AlbumNeedBreakdown.from(need);
+    final swapBreakdown = AlbumSwapBreakdown.from(swaps);
     final hasNeed = needBreakdown.total > 0;
     final hasSwapData = swapBreakdown.totalSwaps > 0 || totalSwaps > 0;
     final showSwapsSection = hasNeed || hasSwapData;
@@ -475,113 +476,10 @@ class _HeroMetricCell extends StatelessWidget {
   }
 }
 
-/// Album sections that are not national team pages.
-const _fwcTeamCode = 'FWC';
-const _cocaColaTeamCode = 'CC';
-
-class _NeedBreakdown {
-  const _NeedBreakdown({
-    required this.teamStickerCount,
-    required this.teamGroupCount,
-    required this.fwcCount,
-    required this.cocaColaCount,
-    required this.allEntries,
-  });
-
-  final int teamStickerCount;
-  final int teamGroupCount;
-  final int fwcCount;
-  final int cocaColaCount;
-  final List<MapEntry<String, List<Sticker>>> allEntries;
-
-  int get total => teamStickerCount + fwcCount + cocaColaCount;
-
-  static _NeedBreakdown from(Map<String, List<Sticker>> byTeam) {
-    var teamStickers = 0;
-    var teamGroups = 0;
-    var fwc = 0;
-    var coke = 0;
-    final entries = <MapEntry<String, List<Sticker>>>[];
-
-    for (final entry in byTeam.entries) {
-      if (entry.value.isEmpty) continue;
-      entries.add(entry);
-      final code = entry.key.split('|').first;
-      final count = entry.value.length;
-      if (code == _fwcTeamCode) {
-        fwc += count;
-      } else if (code == _cocaColaTeamCode) {
-        coke += count;
-      } else {
-        teamStickers += count;
-        teamGroups++;
-      }
-    }
-
-    return _NeedBreakdown(
-      teamStickerCount: teamStickers,
-      teamGroupCount: teamGroups,
-      fwcCount: fwc,
-      cocaColaCount: coke,
-      allEntries: entries,
-    );
-  }
-}
-
-class _SwapBreakdown {
-  const _SwapBreakdown({
-    required this.teamSwapCount,
-    required this.teamGroupCount,
-    required this.fwcSwapCount,
-    required this.cocaColaSwapCount,
-    required this.allEntries,
-  });
-
-  final int teamSwapCount;
-  final int teamGroupCount;
-  final int fwcSwapCount;
-  final int cocaColaSwapCount;
-  final List<MapEntry<String, List<Sticker>>> allEntries;
-
-  int get totalSwaps => teamSwapCount + fwcSwapCount + cocaColaSwapCount;
-
-  static _SwapBreakdown from(Map<String, List<Sticker>> byTeam) {
-    var teamSwaps = 0;
-    var teamGroups = 0;
-    var fwc = 0;
-    var coke = 0;
-    final entries = <MapEntry<String, List<Sticker>>>[];
-
-    for (final entry in byTeam.entries) {
-      if (entry.value.isEmpty) continue;
-      final swaps = entry.value.fold<int>(0, (s, st) => s + st.swapCount);
-      if (swaps == 0) continue;
-      entries.add(entry);
-      final code = entry.key.split('|').first;
-      if (code == _fwcTeamCode) {
-        fwc += swaps;
-      } else if (code == _cocaColaTeamCode) {
-        coke += swaps;
-      } else {
-        teamSwaps += swaps;
-        teamGroups++;
-      }
-    }
-
-    return _SwapBreakdown(
-      teamSwapCount: teamSwaps,
-      teamGroupCount: teamGroups,
-      fwcSwapCount: fwc,
-      cocaColaSwapCount: coke,
-      allEntries: entries,
-    );
-  }
-}
-
 class _NeedSummarySection extends StatelessWidget {
   const _NeedSummarySection({required this.breakdown});
 
-  final _NeedBreakdown breakdown;
+  final AlbumNeedBreakdown breakdown;
 
   @override
   Widget build(BuildContext context) {
@@ -601,12 +499,12 @@ class _NeedSummarySection extends StatelessWidget {
           },
           onShare: () => _shareNeedBackup(context),
         ),
-        if (breakdown.teamStickerCount > 0)
+        if (breakdown.nationalTeamStickerCount > 0)
           _SummaryStatBanner(
             icon: Icons.groups_rounded,
             title: 'Teams',
-            line: '${breakdown.teamStickerCount} stickers · '
-                '${breakdown.teamGroupCount} teams',
+            line: '${breakdown.nationalTeamStickerCount} stickers · '
+                '${breakdown.nationalTeamGroupCount} teams',
             accent: scheme.primary,
             surfaceTint: scheme.primaryContainer.withValues(alpha: 0.35),
           ),
@@ -638,7 +536,7 @@ class _NeedSummarySection extends StatelessWidget {
     final buf = StringBuffer('Need:\n');
     for (final entry in teams) {
       final codes = entry.value.map((s) => s.code).join(', ');
-      buf.writeln('${entry.key.split('|').first}: $codes');
+      buf.writeln('${entry.key}: $codes');
     }
     return buf.toString().trim();
   }
@@ -657,12 +555,12 @@ class _SwapsSummarySection extends StatelessWidget {
     this.loading = false,
   });
 
-  final _SwapBreakdown breakdown;
+  final AlbumSwapBreakdown breakdown;
   final int totalSwaps;
   final bool loading;
 
   bool get _hasCategoryBanners =>
-      breakdown.teamSwapCount > 0 ||
+      breakdown.nationalTeamSwapCount > 0 ||
       breakdown.fwcSwapCount > 0 ||
       breakdown.cocaColaSwapCount > 0;
 
@@ -698,12 +596,12 @@ class _SwapsSummarySection extends StatelessWidget {
             child: LinearProgressIndicator(minHeight: 2),
           ),
         if (_hasCategoryBanners) ...[
-          if (breakdown.teamSwapCount > 0)
+          if (breakdown.nationalTeamSwapCount > 0)
             _SummaryStatBanner(
               icon: Icons.groups_rounded,
               title: 'Teams',
-              line: '${breakdown.teamSwapCount} swaps · '
-                  '${breakdown.teamGroupCount} teams',
+              line: '${breakdown.nationalTeamSwapCount} swaps · '
+                  '${breakdown.nationalTeamGroupCount} teams',
               accent: AppTheme.owned,
               surfaceTint: scheme.primaryContainer.withValues(alpha: 0.28),
             ),
@@ -745,7 +643,7 @@ class _SwapsSummarySection extends StatelessWidget {
     final buf = StringBuffer('Swaps:\n');
     for (final entry in teams) {
       final parts = entry.value.map((s) => '${s.code}×${s.swapCount}').join(', ');
-      buf.writeln('${entry.key.split('|').first}: $parts');
+      buf.writeln('${entry.key}: $parts');
     }
     return buf.toString().trim();
   }

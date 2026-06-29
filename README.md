@@ -1,6 +1,13 @@
 # WC26 Album Tracker
 
-Mobile app for **Panini FIFA World Cup 2026** collectors: track owned and missing stickers simply by scanning album pages with the phone camera to automatically mark  stickers as missing from collection.
+Mobile app for **Panini FIFA World Cup 2026** collectors: scan album pages with the phone camera to mark need stickers, then browse and manage your collection on-device.
+
+## Features
+
+- **Live scan** — ML Kit OCR reads team codes and slot numbers; red overlays on missing stickers; auto-save to SQLite.
+- **Home** — Album progress hero; need and swaps summaries split by **48 national teams** vs **FIFA World Cup** / **Coca-Cola** sections.
+- **Collection** — Team grid (green owned, red need, swap badges); tap a sticker to set owned, need, or swaps; search by team code with clear; **Need** filter.
+- **Collection stats** — Charts for overview, swaps, need, and completion (national teams + album sections).
 
 ## AI & computer vision
 
@@ -28,33 +35,66 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 | **Camera** | `camera` plugin |
 | **Local DB** | SQLite via `sqflite` |
 | **State** | Riverpod |
+| **Charts** | `fl_chart` |
 | **CI** | GitHub Actions — analyze + unit tests |
 
-## Screenshots
+## Gallery
 
-**Live scan (Brazil)**
-
-![Live scan on Brazil team page — need slots highlighted](docs/screenshots/bra-scan-1.png)
-
-**Live scan (Switzerland)**
-
-![Live scan on Switzerland team page — need slots highlighted](docs/screenshots/sui-scan-2.png)
-
-**Home**
-
-![Home — album progress, need and swaps summary](docs/screenshots/home.png)
-
-**Collection — team page**
-
-![Collection team grid with owned and need stickers](docs/screenshots/collection-team.png)
-
-**Collection — edit sticker**
-
-![Sticker edit sheet for owned, need, and swaps](docs/screenshots/collection-edit.png)
+<table>
+<tr>
+<td align="center" width="33%">
+<a href="docs/screenshots/bra-scan-1.png"><img src="docs/screenshots/bra-scan-1.png" width="200" alt="Live scan — Brazil"/></a><br/>
+<sub>Scan BRA</sub>
+</td>
+<td align="center" width="33%">
+<a href="docs/screenshots/sui-scan-2.png"><img src="docs/screenshots/sui-scan-2.png" width="200" alt="Live scan — Switzerland"/></a><br/>
+<sub>Scan SUI</sub>
+</td>
+<td align="center" width="33%">
+<a href="docs/screenshots/home.png"><img src="docs/screenshots/home.png" width="200" alt="Home"/></a><br/>
+<sub>Home</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<a href="docs/screenshots/collection-team.png"><img src="docs/screenshots/collection-team.png" width="200" alt="Collection team grid"/></a><br/>
+<sub>Collection</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-need.png"><img src="docs/screenshots/collection-need.png" width="200" alt="Collection need filter"/></a><br/>
+<sub>Collection - Need</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-edit.png"><img src="docs/screenshots/collection-edit.png" width="200" alt="Sticker edit sheet"/></a><br/>
+<sub>Card</sub>
+</td>
+</tr>
+<tr>
+<td align="center">
+<a href="docs/screenshots/collection-stats-overview.png"><img src="docs/screenshots/collection-stats-overview.png" width="200" alt="Stats overview"/></a><br/>
+<sub>Stats - Overview</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-stats-swaps.png"><img src="docs/screenshots/collection-stats-swaps.png" width="200" alt="Stats swaps"/></a><br/>
+<sub>Stats - Swaps</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-stats-need.png"><img src="docs/screenshots/collection-stats-need.png" width="200" alt="Stats need"/></a><br/>
+<sub>Stats - Need</sub>
+</td>
+</tr>
+<tr>
+<td align="center" colspan="3">
+<a href="docs/screenshots/collection-stats-complete.png"><img src="docs/screenshots/collection-stats-complete.png" width="100" alt="Stats complete"/></a><br/>
+<sub>Stats - Complete</sub>
+</td>
+</tr>
+</table>
 
 ## Development
 
 Build, test, device deploy, and scan pipeline details: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
+
 
 ## License
 
