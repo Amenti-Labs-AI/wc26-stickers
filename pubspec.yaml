@@ -44,6 +44,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/catalog/wc26_catalog.json
+    - assets/catalog/parallel_prices.json
     - assets/page_templates/
     - assets/test_fixtures/
     - assets/branding/amenti_logo_mark.png

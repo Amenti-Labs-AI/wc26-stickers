@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/album_group.dart';
 import '../../core/app_theme.dart';
+import '../../core/parallel_kind.dart';
+import '../../data/models/parallel_price_guide.dart';
 import 'collection_providers.dart';
 
 const _topChartLimit = 12;
@@ -13,6 +15,7 @@ Future<void> showCollectionStatsSheet({
   required WidgetRef ref,
 }) {
   FocusManager.instance.primaryFocus?.unfocus();
+  ref.invalidate(parallelInventoryStatsProvider);
   return showModalBottomSheet<void>(
     context: context,
     showDragHandle: true,
@@ -46,7 +49,7 @@ class _CollectionStatsSheet extends ConsumerWidget {
       data: (stats) {
         final groupStats = AlbumGroupStats.fromTeamStats(stats);
         return DefaultTabController(
-        length: 4,
+        length: 5,
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
@@ -77,6 +80,7 @@ class _CollectionStatsSheet extends ConsumerWidget {
                 Tab(text: 'Swaps'),
                 Tab(text: 'Need'),
                 Tab(text: 'Complete'),
+                Tab(text: 'Parallels'),
               ],
             ),
             Expanded(
@@ -94,6 +98,7 @@ class _CollectionStatsSheet extends ConsumerWidget {
                     metric: _ChartMetric.need,
                   ),
                   _CompletionTab(stats: stats, groupStats: groupStats),
+                  const _ParallelsTab(),
                 ],
               ),
             ),
@@ -106,6 +111,297 @@ class _CollectionStatsSheet extends ConsumerWidget {
 }
 
 enum _ChartMetric { swaps, need }
+
+class _ParallelsTab extends ConsumerWidget {
+  const _ParallelsTab();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final parallelAsync = ref.watch(parallelInventoryStatsProvider);
+
+    return parallelAsync.when(
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, _) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Text('Could not load parallels: $e'),
+        ),
+      ),
+      data: (stats) => _ParallelsTabBody(stats: stats),
+    );
+  }
+}
+
+class _ParallelsTabBody extends StatefulWidget {
+  const _ParallelsTabBody({required this.stats});
+
+  final ParallelInventoryStats stats;
+
+  @override
+  State<_ParallelsTabBody> createState() => _ParallelsTabBodyState();
+}
+
+class _ParallelsTabBodyState extends State<_ParallelsTabBody> {
+  ParallelKind? _filterKind;
+
+  void _toggleKindFilter(ParallelKind kind) {
+    setState(() {
+      _filterKind = _filterKind == kind ? null : kind;
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final stats = widget.stats;
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final filteredHoldings = _filterKind == null
+        ? stats.holdings
+        : stats.holdings.where((h) => h.kind == _filterKind).toList();
+
+    if (stats.totalParallelCount == 0) {
+      return ListView(
+        padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+        children: [
+          const _ChartHeader(title: 'Parallel inventory'),
+          const SizedBox(height: 12),
+          const _ChartHeader(title: 'By rarity'),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final kind in ParallelKind.orderedByRarity)
+                _ParallelRarityChip(
+                  kind: kind,
+                  count: 0,
+                  selected: _filterKind == kind,
+                  onTap: () => _toggleKindFilter(kind),
+                ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const _EmptyChart(message: 'No parallels tracked yet'),
+          const SizedBox(height: 12),
+          Text(
+            'Add parallels in Collection when editing a sticker.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: scheme.onSurfaceVariant,
+            ),
+          ),
+        ],
+      );
+    }
+
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      children: [
+        _SummaryCard(
+          label: 'Estimated value',
+          value: _formatUsd(stats.totalEstimatedValue),
+          subtitle: stats.parallelsSummarySubtitle,
+          color: scheme.tertiary,
+        ),
+        const SizedBox(height: 16),
+        const _ChartHeader(title: 'By rarity'),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final kind in ParallelKind.orderedByRarity)
+              _ParallelRarityChip(
+                kind: kind,
+                count: stats.countByKind[kind] ?? 0,
+                selected: _filterKind == kind,
+                onTap: () => _toggleKindFilter(kind),
+              ),
+          ],
+        ),
+        const SizedBox(height: 20),
+        _ChartHeader(
+          title: 'Holdings by value',
+          subtitle: _filterKind == null
+              ? 'Sorted by unit price (highest first)'
+              : '${_filterKind!.displayLabel} only · ${filteredHoldings.length} lines',
+        ),
+        const SizedBox(height: 8),
+        if (filteredHoldings.isEmpty)
+          _EmptyChart(
+            message: _filterKind == null
+                ? 'No parallels tracked yet'
+                : 'No ${_filterKind!.displayLabel.toLowerCase()} parallels',
+          )
+        else
+          for (final line in filteredHoldings)
+            _ParallelHoldingTile(line: line),
+      ],
+    );
+  }
+}
+
+class _ParallelRarityChip extends StatelessWidget {
+  const _ParallelRarityChip({
+    required this.kind,
+    required this.count,
+    required this.selected,
+    required this.onTap,
+  });
+
+  final ParallelKind kind;
+  final int count;
+  final bool selected;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final alpha = count > 0 ? 1.0 : 0.55;
+    return Opacity(
+      opacity: alpha,
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Ink(
+            decoration: BoxDecoration(
+              color: selected
+                  ? kind.borderColor.withValues(alpha: 0.28)
+                  : kind.borderColor.withValues(alpha: 0.15),
+              borderRadius: BorderRadius.circular(10),
+              border: Border.all(
+                color: selected
+                    ? kind.borderColor
+                    : kind.borderColor.withValues(alpha: 0.45),
+                width: selected ? 2 : 1,
+              ),
+            ),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  width: 10,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: kind.borderColor,
+                    shape: BoxShape.circle,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '${kind.displayLabel} · $count · ${kind.oddsLabel}',
+                  style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: selected ? scheme.onSurface : null,
+                      ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParallelHoldingTile extends StatelessWidget {
+  const _ParallelHoldingTile({required this.line});
+
+  final ParallelHoldingLine line;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          color: scheme.surfaceContainerLow,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: scheme.outlineVariant.withValues(alpha: 0.4)),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+          child: Row(
+            children: [
+              Container(
+                width: 14,
+                height: 14,
+                decoration: BoxDecoration(
+                  color: line.kind.borderColor,
+                  shape: BoxShape.circle,
+                  border: line.kind == ParallelKind.black
+                      ? Border.all(color: scheme.outline)
+                      : null,
+                ),
+              ),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      '${line.code} · ${line.kind.displayLabel}',
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    Text(
+                      '${line.displayName} · ${line.kind.oddsLabel}',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: scheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    '×${line.count}',
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  Text(
+                    '${_formatUsd(line.unitPrice)}${line.isEstimate ? ' est.' : ''}',
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: scheme.onSurfaceVariant,
+                    ),
+                  ),
+                  Text(
+                    _formatUsd(line.lineTotal),
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: scheme.tertiary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+String _formatUsd(double value) {
+  if (value >= 1000) {
+    return '\$${value.toStringAsFixed(0)}';
+  }
+  if (value >= 100) {
+    return '\$${value.toStringAsFixed(0)}';
+  }
+  return '\$${value.toStringAsFixed(2)}';
+}
 
 class _OverviewTab extends StatelessWidget {
   const _OverviewTab({

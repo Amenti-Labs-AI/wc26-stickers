@@ -6,8 +6,9 @@ Mobile app for **Panini FIFA World Cup 2026** collectors: scan album pages with 
 
 - **Live scan** — ML Kit OCR reads team codes and slot numbers; red overlays on missing stickers; auto-save to SQLite.
 - **Home** — Album progress hero; need and swaps summaries split by **48 national teams** vs **FIFA World Cup** / **Coca-Cola** sections.
-- **Collection** — Team grid (green owned, red need, swap badges); tap a sticker to set owned, need, or swaps; search by team code with clear; **Need** filter.
-- **Collection stats** — Charts for overview, swaps, need, and completion (national teams + album sections).
+- **Collection** — Team grid (green owned, red need, swap badges, **parallel color chips**); tap a sticker to set owned, need, swaps, or **parallel counts** (Blue / Red / Purple / Green / Black); search by team code with clear; **Need** filter.
+- **Parallel tracking** — Track Blue / Red / Purple / Green / Black parallels separately from album completion (they count as swaps only); rarity odds and estimated sell values in stats.
+- **Collection stats** — Charts for overview, swaps, need, completion, and **parallels** (holdings sorted by estimated value).
 
 ## AI & computer vision
 
@@ -56,8 +57,8 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 </tr>
 <tr>
 <td align="center">
-<a href="docs/screenshots/collection-team.png"><img src="docs/screenshots/collection-team.png" width="200" alt="Collection team grid"/></a><br/>
-<sub>Collection</sub>
+<a href="docs/screenshots/collection-team.png"><img src="docs/screenshots/collection-team.png" width="200" alt="Collection team grid with parallel chips"/></a><br/>
+<sub>Collection + parallels</sub>
 </td>
 <td align="center">
 <a href="docs/screenshots/collection-need.png"><img src="docs/screenshots/collection-need.png" width="200" alt="Collection need filter"/></a><br/>
@@ -65,7 +66,7 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 </td>
 <td align="center">
 <a href="docs/screenshots/collection-edit.png"><img src="docs/screenshots/collection-edit.png" width="200" alt="Sticker edit sheet"/></a><br/>
-<sub>Card</sub>
+<sub>Card Edit</sub>
 </td>
 </tr>
 <tr>
@@ -74,18 +75,12 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 <sub>Stats - Overview</sub>
 </td>
 <td align="center">
-<a href="docs/screenshots/collection-stats-swaps.png"><img src="docs/screenshots/collection-stats-swaps.png" width="200" alt="Stats swaps"/></a><br/>
-<sub>Stats - Swaps</sub>
-</td>
-<td align="center">
-<a href="docs/screenshots/collection-stats-need.png"><img src="docs/screenshots/collection-stats-need.png" width="200" alt="Stats need"/></a><br/>
-<sub>Stats - Need</sub>
-</td>
-</tr>
-<tr>
-<td align="center" colspan="3">
 <a href="docs/screenshots/collection-stats-complete.png"><img src="docs/screenshots/collection-stats-complete.png" width="200" alt="Stats complete"/></a><br/>
 <sub>Stats - Complete</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-stats-parallels.png"><img src="docs/screenshots/collection-stats-parallels.png" width="200" alt="Stats parallels"/></a><br/>
+<sub>Stats - Parallels</sub>
 </td>
 </tr>
 </table>

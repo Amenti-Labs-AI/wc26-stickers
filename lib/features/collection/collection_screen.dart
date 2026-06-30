@@ -224,6 +224,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     ref.invalidate(swapsByTeamProvider);
     ref.invalidate(teamCollectionStatsProvider);
     ref.invalidate(collectionStatsProvider);
+    ref.invalidate(parallelInventoryStatsProvider);
     ref.invalidate(groupedStickersProvider);
     ref.invalidate(stickersProvider);
   }

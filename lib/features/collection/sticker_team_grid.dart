@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/app_theme.dart';
+import '../../core/parallel_kind.dart';
 import '../../core/sticker_rarity.dart';
 import '../../data/models/sticker.dart';
 import 'sticker_edit_sheet.dart';
@@ -76,6 +77,7 @@ class StickerSlotCard extends StatelessWidget {
         : ownedColor.withValues(alpha: 0.14);
     final borderColor = isNeed ? needColor : ownedColor;
     final swaps = sticker.swapCount;
+    final parallelKinds = sticker.topParallelKinds;
 
     return Material(
       color: bgColor,
@@ -92,7 +94,12 @@ class StickerSlotCard extends StatelessWidget {
             children: [
               Center(
                 child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
+                  padding: EdgeInsets.fromLTRB(
+                    4,
+                    8,
+                    4,
+                    parallelKinds.isNotEmpty ? 18 : 8,
+                  ),
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -143,8 +150,101 @@ class StickerSlotCard extends StatelessWidget {
                     ),
                   ),
                 ),
+              if (parallelKinds.isNotEmpty)
+                Positioned(
+                  left: 4,
+                  right: 4,
+                  bottom: 4,
+                  child: _ParallelBanner(
+                    kinds: parallelKinds,
+                    counts: sticker.parallelCounts,
+                  ),
+                ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ParallelBanner extends StatelessWidget {
+  const _ParallelBanner({
+    required this.kinds,
+    required this.counts,
+  });
+
+  final List<ParallelKind> kinds;
+  final Map<ParallelKind, int> counts;
+
+  static const _maxVisible = 3;
+
+  @override
+  Widget build(BuildContext context) {
+    final visible = kinds.reversed.take(_maxVisible).toList().reversed.toList();
+    final overflow = kinds.length - visible.length;
+
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (final kind in visible) ...[
+          _ParallelChip(
+            kind: kind,
+            count: counts[kind] ?? 0,
+          ),
+          if (kind != visible.last || overflow > 0) const SizedBox(width: 2),
+        ],
+        if (overflow > 0)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+            decoration: BoxDecoration(
+              color: Colors.black54,
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              '+$overflow',
+              style: const TextStyle(
+                color: Colors.white,
+                fontSize: 8,
+                fontWeight: FontWeight.w700,
+                height: 1.1,
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+class _ParallelChip extends StatelessWidget {
+  const _ParallelChip({
+    required this.kind,
+    required this.count,
+  });
+
+  final ParallelKind kind;
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    final label = count > 1 ? '×$count' : '';
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 1),
+      decoration: BoxDecoration(
+        color: kind.borderColor,
+        borderRadius: BorderRadius.circular(4),
+        border: kind == ParallelKind.black
+            ? Border.all(color: Colors.white24, width: 0.5)
+            : null,
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          color: kind.chipForeground(Theme.of(context).colorScheme),
+          fontSize: 8,
+          fontWeight: FontWeight.w700,
+          height: 1.1,
         ),
       ),
     );

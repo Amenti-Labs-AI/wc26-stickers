@@ -69,6 +69,7 @@ class HomeScreen extends ConsumerWidget {
     ref.invalidate(scannedMissingByTeamProvider);
     ref.invalidate(swapsByTeamProvider);
     ref.invalidate(scannedMissingCodesProvider);
+    ref.invalidate(parallelInventoryStatsProvider);
   }
 }
 
@@ -642,7 +643,14 @@ class _SwapsSummarySection extends StatelessWidget {
   String _buildSwapsExportText(List<MapEntry<String, List<Sticker>>> teams) {
     final buf = StringBuffer('Swaps:\n');
     for (final entry in teams) {
-      final parts = entry.value.map((s) => '${s.code}×${s.swapCount}').join(', ');
+      final parts = entry.value
+          .map((s) {
+            final n = s.totalSwapCount;
+            if (n <= 0) return null;
+            return '${s.code}×$n';
+          })
+          .whereType<String>()
+          .join(', ');
       buf.writeln('${entry.key}: $parts');
     }
     return buf.toString().trim();

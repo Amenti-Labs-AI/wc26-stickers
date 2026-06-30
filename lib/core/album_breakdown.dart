@@ -77,7 +77,7 @@ class AlbumSwapBreakdown {
 
     for (final entry in byTeam.entries) {
       if (entry.value.isEmpty) continue;
-      final swaps = entry.value.fold<int>(0, (s, st) => s + st.swapCount);
+      final swaps = entry.value.fold<int>(0, (s, st) => s + st.totalSwapCount);
       if (swaps == 0) continue;
       entries.add(entry);
       switch (albumGroupKindForCode(entry.key)) {

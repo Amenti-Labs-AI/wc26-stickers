@@ -1,3 +1,5 @@
+import '../../core/parallel_kind.dart';
+
 class Sticker {
   const Sticker({
     required this.code,
@@ -10,6 +12,7 @@ class Sticker {
     this.albumPage,
     this.slotIndexOnPage,
     this.ownedCount = 0,
+    this.parallelCounts = const {},
   });
 
   final String code;
@@ -22,13 +25,27 @@ class Sticker {
   final int? albumPage;
   final int? slotIndexOnPage;
   final int ownedCount;
+  final Map<ParallelKind, int> parallelCounts;
 
   bool get isMissing => ownedCount == 0;
   bool get isOwned => ownedCount >= 1;
   bool get isDuplicate => ownedCount >= 2;
 
-  /// Extra copies beyond the first (user-facing: Swaps).
+  /// Extra base copies beyond the first (user-facing: Swaps).
   int get swapCount => ownedCount > 1 ? ownedCount - 1 : 0;
+
+  /// Sum of all parallel variant copies.
+  int get parallelSwapCount =>
+      parallelCounts.values.fold<int>(0, (sum, n) => sum + n);
+
+  /// Base swaps plus parallel inventory (for stats and breakdowns).
+  int get totalSwapCount => swapCount + parallelSwapCount;
+
+  bool get hasParallels => parallelSwapCount > 0;
+
+  /// Held parallel kinds, rarest last (for banner display).
+  List<ParallelKind> get topParallelKinds =>
+      ParallelKind.kindsWithCounts(parallelCounts);
 
   bool isNeed(Set<String> scannedMissing) =>
       scannedMissing.contains(code) || ownedCount == 0;
@@ -59,7 +76,11 @@ class Sticker {
     }
   }
 
-  Sticker copyWith({int? ownedCount}) => Sticker(
+  Sticker copyWith({
+    int? ownedCount,
+    Map<ParallelKind, int>? parallelCounts,
+  }) =>
+      Sticker(
         code: code,
         teamCode: teamCode,
         teamName: teamName,
@@ -70,6 +91,7 @@ class Sticker {
         albumPage: albumPage,
         slotIndexOnPage: slotIndexOnPage,
         ownedCount: ownedCount ?? this.ownedCount,
+        parallelCounts: parallelCounts ?? this.parallelCounts,
       );
 
   Map<String, dynamic> toJson() => {

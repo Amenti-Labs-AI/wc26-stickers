@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
+import '../../core/parallel_kind.dart';
 import '../../core/sticker_search_query.dart';
 import '../models/sticker.dart';
 
@@ -24,7 +25,7 @@ class AppDatabase {
     final path = p.join(dbPath, 'panini_wc26.db');
     return openDatabase(
       path,
-      version: 6,
+      version: 7,
       onCreate: (db, version) async {
         await _createSchema(db);
         await _seedCatalog(db);
@@ -49,10 +50,14 @@ class AppDatabase {
         if (oldVersion < 6) {
           await _syncCatalogFromAsset(db);
         }
+        if (oldVersion < 7) {
+          await _createParallelInventoryTable(db);
+        }
       },
       onOpen: (db) async {
         await _dedupeTables(db);
         await _createScannedMissingTable(db);
+        await _createParallelInventoryTable(db);
         await _ensureCollectionRows(db);
       },
     );
@@ -80,6 +85,19 @@ class AppDatabase {
       )
     ''');
     await _createScannedMissingTable(db);
+    await _createParallelInventoryTable(db);
+  }
+
+  Future<void> _createParallelInventoryTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS parallel_inventory (
+        code TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        count INTEGER NOT NULL DEFAULT 0 CHECK(count >= 0 AND count <= 999),
+        PRIMARY KEY (code, kind),
+        FOREIGN KEY (code) REFERENCES catalog(code)
+      )
+    ''');
   }
 
   Future<void> _defaultCollectionToOwned(Database db) async {
@@ -187,6 +205,11 @@ class AppDatabase {
           where: 'code = ?',
           whereArgs: [code],
         );
+        await txn.delete(
+          'parallel_inventory',
+          where: 'code = ?',
+          whereArgs: [code],
+        );
       }
 
       await txn.execute('''
@@ -236,7 +259,10 @@ class AppDatabase {
           c.slot_number
       ''';
       final rows = await db.rawQuery(sql, args);
-      return rows.map(_rowToSticker).toList();
+      final parallelByCode = await getAllParallelCounts();
+      return rows
+          .map((row) => _rowToSticker(row, parallelByCode))
+          .toList();
     }
 
     switch (filter) {
@@ -247,7 +273,12 @@ class AppDatabase {
       case StickerFilter.scannedMissing:
         break;
       case StickerFilter.duplicates:
-        where.add('col.owned_count >= 2');
+        where.add('''
+          (col.owned_count >= 2 OR EXISTS (
+            SELECT 1 FROM parallel_inventory pi
+            WHERE pi.code = c.code AND pi.count > 0
+          ))
+        ''');
       case StickerFilter.all:
         break;
     }
@@ -269,11 +300,110 @@ class AppDatabase {
     ''';
 
     final rows = await db.rawQuery(sql, args);
-    return rows.map(_rowToSticker).toList();
+    final parallelByCode = await getAllParallelCounts();
+    return rows
+        .map((row) => _rowToSticker(row, parallelByCode))
+        .toList();
   }
 
-  Sticker _rowToSticker(Map<String, Object?> row) => Sticker(
-        code: row['code']! as String,
+  Future<Map<String, Map<ParallelKind, int>>> getAllParallelCounts() async {
+    final db = await database;
+    final rows = await db.query(
+      'parallel_inventory',
+      where: 'count > 0',
+    );
+    final result = <String, Map<ParallelKind, int>>{};
+    for (final row in rows) {
+      final code = (row['code']! as String).toUpperCase();
+      final kind = ParallelKind.fromStorageKey(row['kind']! as String);
+      if (kind == null) continue;
+      final count = row['count']! as int;
+      result.putIfAbsent(code, () => {})[kind] = count;
+    }
+    return result;
+  }
+
+  Future<Map<ParallelKind, int>> getParallelCountsForCode(String code) async {
+    final db = await database;
+    final upper = code.toUpperCase();
+    final rows = await db.query(
+      'parallel_inventory',
+      where: 'code = ? AND count > 0',
+      whereArgs: [upper],
+    );
+    final result = <ParallelKind, int>{};
+    for (final row in rows) {
+      final kind = ParallelKind.fromStorageKey(row['kind']! as String);
+      if (kind == null) continue;
+      result[kind] = row['count']! as int;
+    }
+    return result;
+  }
+
+  Future<void> setParallelCount(
+    String code,
+    ParallelKind kind,
+    int count,
+  ) async {
+    final upper = code.toUpperCase();
+    final clamped = count.clamp(0, 999);
+    final db = await database;
+    if (clamped == 0) {
+      await db.delete(
+        'parallel_inventory',
+        where: 'code = ? AND kind = ?',
+        whereArgs: [upper, kind.storageKey],
+      );
+      return;
+    }
+    await db.insert(
+      'parallel_inventory',
+      {
+        'code': upper,
+        'kind': kind.storageKey,
+        'count': clamped,
+      },
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<void> applyParallelCounts(
+    String code,
+    Map<ParallelKind, int> counts,
+  ) async {
+    final upper = code.toUpperCase();
+    final db = await database;
+    await db.transaction((txn) async {
+      for (final kind in ParallelKind.values) {
+        final count = (counts[kind] ?? 0).clamp(0, 999);
+        if (count == 0) {
+          await txn.delete(
+            'parallel_inventory',
+            where: 'code = ? AND kind = ?',
+            whereArgs: [upper, kind.storageKey],
+          );
+        } else {
+          await txn.insert(
+            'parallel_inventory',
+            {
+              'code': upper,
+              'kind': kind.storageKey,
+              'count': count,
+            },
+            conflictAlgorithm: ConflictAlgorithm.replace,
+          );
+        }
+      }
+    });
+  }
+
+  Sticker _rowToSticker(
+    Map<String, Object?> row, [
+    Map<String, Map<ParallelKind, int>>? parallelByCode,
+  ]) {
+    final code = row['code']! as String;
+    return Sticker(
+        code: code,
         teamCode: row['team_code']! as String,
         teamName: row['team_name']! as String,
         slotNumber: row['slot_number']! as int,
@@ -283,7 +413,10 @@ class AppDatabase {
         albumPage: row['album_page'] as int?,
         slotIndexOnPage: row['slot_index_on_page'] as int?,
         ownedCount: row['owned_count']! as int,
+        parallelCounts: parallelByCode?[code.toUpperCase()] ??
+            const <ParallelKind, int>{},
       );
+  }
 
   Future<Sticker?> getSticker(String code) async {
     final upper = code.toUpperCase();
@@ -296,7 +429,8 @@ class AppDatabase {
       WHERE c.code = ?
     ''', [upper]);
     if (rows.isEmpty) return null;
-    return _rowToSticker(rows.first);
+    final parallelByCode = await getAllParallelCounts();
+    return _rowToSticker(rows.first, parallelByCode);
   }
 
   Future<Map<String, String>> getDisplayNamesByCodes(Iterable<String> codes) async {
@@ -479,17 +613,22 @@ class AppDatabase {
             ELSE 0
           END
         ) AS owned,
-        SUM(CASE WHEN c.owned_count >= 2 THEN c.owned_count - 1 ELSE 0 END) AS duplicates
+        SUM(CASE WHEN c.owned_count >= 2 THEN c.owned_count - 1 ELSE 0 END) AS base_duplicates
       FROM collection c
       LEFT JOIN scanned_missing sm ON sm.code = c.code
     ''');
     final r = row.first;
     final scannedRows = await db.rawQuery('SELECT COUNT(*) AS n FROM scanned_missing');
+    final parallelRows = await db.rawQuery('''
+      SELECT COALESCE(SUM(count), 0) AS n FROM parallel_inventory
+    ''');
+    final baseDuplicates = (r['base_duplicates'] as int?) ?? 0;
+    final parallelDuplicates = (parallelRows.first['n'] as int?) ?? 0;
     return CollectionStats(
       total: r['total']! as int,
       owned: (r['owned'] as int?) ?? 0,
       scannedMissing: (scannedRows.first['n'] as int?) ?? 0,
-      duplicates: (r['duplicates'] as int?) ?? 0,
+      duplicates: baseDuplicates + parallelDuplicates,
     );
   }
 
@@ -552,6 +691,7 @@ class AppDatabase {
     await db.transaction((txn) async {
       await txn.update('collection', {'owned_count': 1});
       await txn.delete('scanned_missing');
+      await txn.delete('parallel_inventory');
     });
   }
 }

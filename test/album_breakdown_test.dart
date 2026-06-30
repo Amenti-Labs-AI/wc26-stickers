@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:panini_wc26_tracker/core/album_breakdown.dart';
+import 'package:panini_wc26_tracker/core/parallel_kind.dart';
 import 'package:panini_wc26_tracker/data/models/sticker.dart';
 
 void main() {
@@ -87,6 +88,27 @@ void main() {
       expect(breakdown.nationalTeamGroupCount, 1);
       expect(breakdown.cocaColaSwapCount, 1);
       expect(breakdown.totalSwaps, 3);
+    });
+
+    test('includes parallel counts in swap totals', () {
+      final byTeam = {
+        'ARG': [
+          Sticker(
+            code: 'ARG17',
+            teamCode: 'ARG',
+            teamName: 'Argentina',
+            slotNumber: 17,
+            category: 'player',
+            group: 'Group',
+            ownedCount: 1,
+            parallelCounts: const {ParallelKind.purple: 2},
+          ),
+        ],
+      };
+
+      final breakdown = AlbumSwapBreakdown.from(byTeam);
+      expect(breakdown.nationalTeamSwapCount, 2);
+      expect(breakdown.totalSwaps, 2);
     });
   });
 }

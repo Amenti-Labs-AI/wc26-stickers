@@ -88,11 +88,12 @@ adb pull /sdcard/Pictures/Screenshots/Screenshot_*.png docs/screenshots/_incomin
 make android-screenshot NAME=home
 make android-screenshot NAME=collection-team
 make android-screenshot NAME=collection-stats-overview
+make android-screenshot NAME=collection-stats-parallels
 ```
 
 Resize for README (270×585): `sips -z 585 270 docs/screenshots/<name>.png`
 
-Expected names: `home`, `collection-team`, `collection-need`, `collection-edit`, `collection-stats-{overview,swaps,need,complete}`, `bra-scan-1`, `sui-scan-2`.
+Expected names: `home`, `collection-team`, `collection-need`, `collection-edit`, `collection-stats-{overview,swaps,need,complete,parallels}`, `bra-scan-1`, `sui-scan-2`.
 
 Files land in [`docs/screenshots/`](../docs/screenshots/) and render in the [README](../README.md) gallery table.
 
