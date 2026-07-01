@@ -48,6 +48,14 @@ final scannedMissingByTeamProvider =
   );
 });
 
+/// Teams with at least one parallel held.
+final parallelsByTeamProvider =
+    FutureProvider<Map<String, List<Sticker>>>((ref) async {
+  return AppDatabase.instance.getGroupedByTeam(
+    filter: StickerFilter.parallels,
+  );
+});
+
 /// Teams with at least one swap (owned_count >= 2).
 final swapsByTeamProvider =
     FutureProvider<Map<String, List<Sticker>>>((ref) async {
@@ -161,7 +169,7 @@ final teamCollectionStatsProvider =
     var need = 0;
     var owned = 0;
     for (final s in teamStickers) {
-      swaps += s.totalSwapCount;
+      swaps += s.swapCount;
       if (s.isNeed(scannedMissing)) {
         need++;
       } else {

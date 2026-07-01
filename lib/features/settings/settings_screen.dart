@@ -391,6 +391,7 @@ class SettingsScreen extends ConsumerWidget {
     ref.invalidate(scannedMissingCodesProvider);
     ref.invalidate(scannedMissingByTeamProvider);
     ref.invalidate(swapsByTeamProvider);
+    ref.invalidate(parallelsByTeamProvider);
     ref.invalidate(groupedStickersProvider);
   }
 

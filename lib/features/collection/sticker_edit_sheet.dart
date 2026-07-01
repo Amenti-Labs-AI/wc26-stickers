@@ -212,7 +212,7 @@ class _StickerEditSheetState extends State<_StickerEditSheet> {
                 Text('Parallels', style: theme.textTheme.labelLarge),
                 const SizedBox(height: 4),
                 Text(
-                  'Parallels count as swaps, not album completion.',
+                  'Parallels are tracked separately from album completion.',
                   style: theme.textTheme.bodySmall?.copyWith(
                     color: scheme.onSurfaceVariant,
                   ),

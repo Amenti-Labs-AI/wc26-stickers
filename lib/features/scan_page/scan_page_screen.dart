@@ -305,6 +305,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
       if (!mounted) return;
       ref.invalidate(scannedMissingByTeamProvider);
       ref.invalidate(swapsByTeamProvider);
+      ref.invalidate(parallelsByTeamProvider);
       ref.invalidate(scannedMissingCodesProvider);
       ref.invalidate(groupedStickersProvider);
       ref.invalidate(collectionStatsProvider);

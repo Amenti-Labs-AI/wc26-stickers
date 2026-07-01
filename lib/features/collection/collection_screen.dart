@@ -222,6 +222,7 @@ class _CollectionScreenState extends ConsumerState<CollectionScreen> {
     ref.invalidate(scannedMissingCodesProvider);
     ref.invalidate(scannedMissingByTeamProvider);
     ref.invalidate(swapsByTeamProvider);
+    ref.invalidate(parallelsByTeamProvider);
     ref.invalidate(teamCollectionStatsProvider);
     ref.invalidate(collectionStatsProvider);
     ref.invalidate(parallelInventoryStatsProvider);

@@ -7,8 +7,6 @@ import 'package:share_plus/share_plus.dart';
 
 import '../../core/album_breakdown.dart';
 import '../../core/app_theme.dart';
-import '../../core/missing_stickers_codec.dart';
-import '../../data/database/app_database.dart';
 import '../../data/models/sticker.dart';
 import '../collection/collection_providers.dart';
 
@@ -20,6 +18,7 @@ class HomeScreen extends ConsumerWidget {
     final statsAsync = ref.watch(collectionStatsProvider);
     final needAsync = ref.watch(scannedMissingByTeamProvider);
     final swapsAsync = ref.watch(swapsByTeamProvider);
+    final parallelsAsync = ref.watch(parallelsByTeamProvider);
 
     return LayoutBuilder(
       builder: (context, constraints) {
@@ -47,12 +46,14 @@ class HomeScreen extends ConsumerWidget {
                   data: (stats) => _HomeSummaryBody(
                     needAsync: needAsync,
                     swapsAsync: swapsAsync,
+                    parallelsAsync: parallelsAsync,
                     totalSwaps: stats.duplicates,
                   ),
                   loading: () => const Center(child: CircularProgressIndicator()),
                   error: (_, __) => _HomeSummaryBody(
                     needAsync: needAsync,
                     swapsAsync: swapsAsync,
+                    parallelsAsync: parallelsAsync,
                     totalSwaps: 0,
                   ),
                 ),
@@ -68,6 +69,7 @@ class HomeScreen extends ConsumerWidget {
     ref.invalidate(collectionStatsProvider);
     ref.invalidate(scannedMissingByTeamProvider);
     ref.invalidate(swapsByTeamProvider);
+    ref.invalidate(parallelsByTeamProvider);
     ref.invalidate(scannedMissingCodesProvider);
     ref.invalidate(parallelInventoryStatsProvider);
   }
@@ -77,24 +79,29 @@ class _HomeSummaryBody extends StatelessWidget {
   const _HomeSummaryBody({
     required this.needAsync,
     required this.swapsAsync,
+    required this.parallelsAsync,
     required this.totalSwaps,
   });
 
   final AsyncValue<Map<String, List<Sticker>>> needAsync;
   final AsyncValue<Map<String, List<Sticker>>> swapsAsync;
+  final AsyncValue<Map<String, List<Sticker>>> parallelsAsync;
   final int totalSwaps;
 
   @override
   Widget build(BuildContext context) {
     final need = needAsync.valueOrNull ?? const {};
     final swaps = swapsAsync.valueOrNull ?? const {};
+    final parallels = parallelsAsync.valueOrNull ?? const {};
     final needBreakdown = AlbumNeedBreakdown.from(need);
     final swapBreakdown = AlbumSwapBreakdown.from(swaps);
+    final parallelBreakdown = AlbumParallelBreakdown.from(parallels);
     final hasNeed = needBreakdown.total > 0;
     final hasSwapData = swapBreakdown.totalSwaps > 0 || totalSwaps > 0;
+    final hasParallels = parallelBreakdown.totalParallels > 0;
     final showSwapsSection = hasNeed || hasSwapData;
 
-    if (!hasNeed && !hasSwapData) {
+    if (!hasNeed && !hasSwapData && !hasParallels) {
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(
@@ -144,6 +151,13 @@ class _HomeSummaryBody extends StatelessWidget {
             breakdown: swapBreakdown,
             totalSwaps: totalSwaps,
             loading: swapsAsync.isLoading && swapsAsync.valueOrNull == null,
+          ),
+        if (showSwapsSection && hasParallels) const SizedBox(height: 20),
+        if (hasParallels)
+          _ParallelsSummarySection(
+            breakdown: parallelBreakdown,
+            loading:
+                parallelsAsync.isLoading && parallelsAsync.valueOrNull == null,
           ),
       ],
     );
@@ -485,20 +499,27 @@ class _NeedSummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final exportText = _buildNeedExportText(breakdown.allEntries);
+    final exportText = formatNeedExportFromTeams(breakdown.allEntries);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _SummarySectionHeader(
           title: 'Need',
-          onCopy: () {
-            Clipboard.setData(ClipboardData(text: exportText));
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(content: Text('Need list copied')),
-            );
-          },
-          onShare: () => _shareNeedBackup(context),
+          onCopy: breakdown.total == 0
+              ? null
+              : () {
+                  Clipboard.setData(ClipboardData(text: exportText));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Need list copied')),
+                  );
+                },
+          onShare: breakdown.total == 0
+              ? null
+              : () => Share.share(
+                    exportText,
+                    subject: 'WC26 need list',
+                  ),
         ),
         if (breakdown.nationalTeamStickerCount > 0)
           _SummaryStatBanner(
@@ -532,21 +553,6 @@ class _NeedSummarySection extends StatelessWidget {
       ],
     );
   }
-
-  String _buildNeedExportText(List<MapEntry<String, List<Sticker>>> teams) {
-    final buf = StringBuffer('Need:\n');
-    for (final entry in teams) {
-      final codes = entry.value.map((s) => s.code).join(', ');
-      buf.writeln('${entry.key}: $codes');
-    }
-    return buf.toString().trim();
-  }
-
-  Future<void> _shareNeedBackup(BuildContext context) async {
-    final json = await AppDatabase.instance.exportMissingStickersJson();
-    final code = encodeMissingStickers(json);
-    await Share.share(code, subject: 'WC26 need stickers backup');
-  }
 }
 
 class _SwapsSummarySection extends StatelessWidget {
@@ -568,7 +574,7 @@ class _SwapsSummarySection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-    final exportText = _buildSwapsExportText(breakdown.allEntries);
+    final exportText = formatSwapsExportFromTeams(breakdown.allEntries);
     final displayTotal = breakdown.totalSwaps > 0 ? breakdown.totalSwaps : totalSwaps;
 
     return Column(
@@ -639,21 +645,93 @@ class _SwapsSummarySection extends StatelessWidget {
       ],
     );
   }
+}
 
-  String _buildSwapsExportText(List<MapEntry<String, List<Sticker>>> teams) {
-    final buf = StringBuffer('Swaps:\n');
-    for (final entry in teams) {
-      final parts = entry.value
-          .map((s) {
-            final n = s.totalSwapCount;
-            if (n <= 0) return null;
-            return '${s.code}×$n';
-          })
-          .whereType<String>()
-          .join(', ');
-      buf.writeln('${entry.key}: $parts');
-    }
-    return buf.toString().trim();
+class _ParallelsSummarySection extends StatelessWidget {
+  const _ParallelsSummarySection({
+    required this.breakdown,
+    this.loading = false,
+  });
+
+  final AlbumParallelBreakdown breakdown;
+  final bool loading;
+
+  bool get _hasCategoryBanners =>
+      breakdown.nationalTeamParallelCount > 0 ||
+      breakdown.fwcParallelCount > 0 ||
+      breakdown.cocaColaParallelCount > 0;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final exportText = formatParallelsExportFromTeams(breakdown.allEntries);
+    final total = breakdown.totalParallels;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _SummarySectionHeader(
+          title: 'Parallels',
+          onCopy: total == 0
+              ? null
+              : () {
+                  Clipboard.setData(ClipboardData(text: exportText));
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Parallels list copied')),
+                  );
+                },
+          onShare: total == 0
+              ? null
+              : () => Share.share(
+                    exportText,
+                    subject: 'WC26 parallels list',
+                  ),
+        ),
+        if (loading)
+          const Padding(
+            padding: EdgeInsets.only(bottom: 8),
+            child: LinearProgressIndicator(minHeight: 2),
+          ),
+        if (_hasCategoryBanners) ...[
+          if (breakdown.nationalTeamParallelCount > 0)
+            _SummaryStatBanner(
+              icon: Icons.layers_rounded,
+              title: 'Teams',
+              line: '${breakdown.nationalTeamParallelCount} parallels · '
+                  '${breakdown.nationalTeamGroupCount} teams',
+              accent: scheme.secondary,
+              surfaceTint: scheme.secondaryContainer.withValues(alpha: 0.35),
+            ),
+          if (breakdown.fwcParallelCount > 0) ...[
+            const SizedBox(height: 8),
+            _SummaryStatBanner(
+              icon: Icons.emoji_events_rounded,
+              title: 'FIFA World Cup',
+              line: '${breakdown.fwcParallelCount} parallels',
+              accent: scheme.tertiary,
+              surfaceTint: scheme.tertiaryContainer.withValues(alpha: 0.45),
+            ),
+          ],
+          if (breakdown.cocaColaParallelCount > 0) ...[
+            const SizedBox(height: 8),
+            _SummaryStatBanner(
+              icon: Icons.local_drink_rounded,
+              title: 'Coca-Cola',
+              line: '${breakdown.cocaColaParallelCount} parallels',
+              accent: AppTheme.missing,
+              surfaceTint: scheme.errorContainer.withValues(alpha: 0.35),
+            ),
+          ],
+        ] else
+          _SummaryStatBanner(
+            icon: Icons.layers_rounded,
+            title: 'Total',
+            line: '$total parallels',
+            accent: scheme.secondary,
+            surfaceTint: scheme.secondaryContainer.withValues(alpha: 0.35),
+          ),
+      ],
+    );
   }
 }
 

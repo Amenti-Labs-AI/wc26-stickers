@@ -7,7 +7,7 @@ Mobile app for **Panini FIFA World Cup 2026** collectors: scan album pages with 
 - **Live scan** — ML Kit OCR reads team codes and slot numbers; red overlays on missing stickers; auto-save to SQLite.
 - **Home** — Album progress hero; need and swaps summaries split by **48 national teams** vs **FIFA World Cup** / **Coca-Cola** sections.
 - **Collection** — Team grid (green owned, red need, swap badges, **parallel color chips**); tap a sticker to set owned, need, swaps, or **parallel counts** (Blue / Red / Purple / Green / Black); search by team code with clear; **Need** filter.
-- **Parallel tracking** — Track Blue / Red / Purple / Green / Black parallels separately from album completion (they count as swaps only); rarity odds and estimated sell values in stats.
+- **Parallel tracking** — Track Blue / Red / Purple / Green / Black parallels separately from album completion and base swaps; rarity odds and estimated sell values in stats.
 - **Collection stats** — Charts for overview, swaps, need, completion, and **parallels** (holdings sorted by estimated value).
 
 ## AI & computer vision

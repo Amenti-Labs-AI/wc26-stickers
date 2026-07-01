@@ -273,11 +273,13 @@ class AppDatabase {
       case StickerFilter.scannedMissing:
         break;
       case StickerFilter.duplicates:
+        where.add('col.owned_count >= 2');
+      case StickerFilter.parallels:
         where.add('''
-          (col.owned_count >= 2 OR EXISTS (
+          EXISTS (
             SELECT 1 FROM parallel_inventory pi
             WHERE pi.code = c.code AND pi.count > 0
-          ))
+          )
         ''');
       case StickerFilter.all:
         break;
@@ -613,22 +615,17 @@ class AppDatabase {
             ELSE 0
           END
         ) AS owned,
-        SUM(CASE WHEN c.owned_count >= 2 THEN c.owned_count - 1 ELSE 0 END) AS base_duplicates
+        SUM(CASE WHEN c.owned_count >= 2 THEN c.owned_count - 1 ELSE 0 END) AS duplicates
       FROM collection c
       LEFT JOIN scanned_missing sm ON sm.code = c.code
     ''');
     final r = row.first;
     final scannedRows = await db.rawQuery('SELECT COUNT(*) AS n FROM scanned_missing');
-    final parallelRows = await db.rawQuery('''
-      SELECT COALESCE(SUM(count), 0) AS n FROM parallel_inventory
-    ''');
-    final baseDuplicates = (r['base_duplicates'] as int?) ?? 0;
-    final parallelDuplicates = (parallelRows.first['n'] as int?) ?? 0;
     return CollectionStats(
       total: r['total']! as int,
       owned: (r['owned'] as int?) ?? 0,
       scannedMissing: (scannedRows.first['n'] as int?) ?? 0,
-      duplicates: baseDuplicates + parallelDuplicates,
+      duplicates: (r['duplicates'] as int?) ?? 0,
     );
   }
 
@@ -696,4 +693,4 @@ class AppDatabase {
   }
 }
 
-enum StickerFilter { all, owned, missing, scannedMissing, duplicates }
+enum StickerFilter { all, owned, missing, scannedMissing, duplicates, parallels }
