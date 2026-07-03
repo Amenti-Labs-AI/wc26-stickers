@@ -9,6 +9,7 @@ import '../../core/album_breakdown.dart';
 import '../../core/app_theme.dart';
 import '../../data/models/sticker.dart';
 import '../collection/collection_providers.dart';
+import 'vendor_listing_sheet.dart';
 
 class HomeScreen extends ConsumerWidget {
   const HomeScreen({super.key});
@@ -521,6 +522,23 @@ class _NeedSummarySection extends StatelessWidget {
                     subject: 'WC26 need list',
                   ),
         ),
+        if (breakdown.total > 0) ...[
+          Padding(
+            padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+            child: OutlinedButton.icon(
+              onPressed: () {
+                final needStickers =
+                    breakdown.allEntries.expand((e) => e.value);
+                showVendorListingSheet(
+                  context: context,
+                  needStickers: needStickers,
+                );
+              },
+              icon: const Icon(Icons.storefront_rounded, size: 18),
+              label: const Text('Check listings'),
+            ),
+          ),
+        ],
         if (breakdown.nationalTeamStickerCount > 0)
           _SummaryStatBanner(
             icon: Icons.groups_rounded,

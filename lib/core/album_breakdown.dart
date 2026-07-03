@@ -1,6 +1,7 @@
 import '../data/models/sticker.dart';
 import 'album_group.dart';
 import 'parallel_kind.dart';
+import 'sticker_code_parser.dart';
 
 class AlbumNeedBreakdown {
   const AlbumNeedBreakdown({
@@ -172,6 +173,19 @@ String formatNeedExportFromTeams(
   List<MapEntry<String, List<Sticker>>> teams,
 ) =>
     formatNeedExport(teams.expand((e) => e.value));
+
+/// Sticker codes from [listing] that are also in [needStickers], sorted like need export.
+List<String> needCodesInVendorListing(
+  String listing,
+  Iterable<Sticker> needStickers,
+) {
+  final found = StickerCodeParser.parseAll(listing).toSet();
+  final matched = needStickers
+      .where((s) => found.contains(s.code.toUpperCase()))
+      .toList()
+    ..sort(_compareStickersByTeamSlot);
+  return [for (final s in matched) s.code];
+}
 
 /// Share/copy text for swaps (base duplicates only): CODE - count per line.
 String formatSwapsExport(Iterable<Sticker> stickers) {
