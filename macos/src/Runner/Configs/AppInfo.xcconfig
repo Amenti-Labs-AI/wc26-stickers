@@ -5,10 +5,10 @@
 // 'flutter create' template.
 
 // The application's name. By default this is also the title of the Flutter window.
-PRODUCT_NAME = panini_wc26_tracker
+PRODUCT_NAME = WC26Stickers
 
 // The application's bundle identifier
-PRODUCT_BUNDLE_IDENTIFIER = com.amentilabs.paniniWc26Tracker
+PRODUCT_BUNDLE_IDENTIFIER = com.amentilabs.wc26Stickers
 
 // The copyright displayed in application information
-PRODUCT_COPYRIGHT = Copyright © 2026 com.amentilabs. All rights reserved.
+PRODUCT_COPYRIGHT = Copyright © 2026 Amenti Labs, LLC. All rights reserved.
