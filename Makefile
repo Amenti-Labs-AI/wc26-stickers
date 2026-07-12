@@ -4,7 +4,7 @@
 IOS_SIMULATOR ?= iPhone 17 Pro
 export IOS_SIMULATOR
 
-.PHONY: help get test test-coverage analyze ci scan-check scan-check-device ios device android android-device android-devices android-pull-db android-push-db android-screenshot ios-screenshot \
+.PHONY: help get test test-coverage analyze ci version scan-check scan-check-device ios device android android-device android-devices android-pull-db android-push-db android-screenshot ios-screenshot \
         android-apk android-apk-release android-aab android-install android-install-release release \
         clean generate-catalog generate-templates
 
@@ -19,6 +19,7 @@ help: ## Show dev commands
 	@printf "    make scan-check-device-mex  MEX-only device OCR loop\n"
 	@printf "    make analyze          flutter analyze\n"
 	@printf "    make ci               analyze + test\n"
+	@printf "    make version          print pubspec version\n"
 	@printf "    make ios              iOS Simulator\n"
 	@printf "    make device           physical iPhone (camera scan)\n"
 	@printf "    make android          Android device or emulator\n"
@@ -50,6 +51,9 @@ analyze: ## flutter analyze
 	flutter analyze
 
 ci: analyze test ## CI checks
+
+version: ## print pubspec name+build
+	@grep -E '^version:' pubspec.yaml | awk '{print $$2}'
 
 scan-check: get ## Validate scan pipeline on host (~15s, no device)
 	@flutter test test/camera_preview_mapper_test.dart \

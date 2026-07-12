@@ -3,7 +3,13 @@ name: CI
 on:
   push:
     branches: [main, master]
+    tags: ["v*"]
   pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -17,3 +23,186 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze
       - run: flutter test
+
+  # Play-uploadable Android artifacts (signed AAB + sideload APK).
+  # Runs on version tags and manual dispatch only — not on every main push.
+  package:
+    needs: test
+    if: >
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      version_name: ${{ steps.version.outputs.version_name }}
+      version_code: ${{ steps.version.outputs.version_code }}
+      full_version: ${{ steps.version.outputs.full_version }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Resolve version
+        id: version
+        run: |
+          set -euo pipefail
+          pubspec_full="$(grep -E '^version:' pubspec.yaml | head -1 | awk '{print $2}')"
+          pubspec_name="${pubspec_full%%+*}"
+          pubspec_code="${pubspec_full##*+}"
+          if [[ "$pubspec_full" != *"+"* ]]; then
+            pubspec_code="1"
+          fi
+
+          if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME#v}"
+            if [[ "$tag" == *"+"* ]]; then
+              version_name="${tag%%+*}"
+              version_code="${tag##*+}"
+            else
+              version_name="$tag"
+              version_code="${GITHUB_RUN_NUMBER}"
+            fi
+          else
+            # workflow_dispatch: marketing name from pubspec; build = run number.
+            version_name="$pubspec_name"
+            version_code="${GITHUB_RUN_NUMBER}"
+            if [[ "$version_code" -lt "$pubspec_code" ]]; then
+              version_code="$pubspec_code"
+            fi
+          fi
+
+          full_version="${version_name}+${version_code}"
+          {
+            echo "version_name=${version_name}"
+            echo "version_code=${version_code}"
+            echo "full_version=${full_version}"
+          } >> "$GITHUB_OUTPUT"
+
+          sed -i -E "s/^version: .*/version: ${full_version}/" pubspec.yaml
+          echo "Building ${full_version}"
+          echo "${full_version}" > VERSION.txt
+
+      - run: flutter pub get
+
+      - name: Require upload keystore
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          missing=0
+          for name in ANDROID_KEYSTORE_BASE64 ANDROID_KEYSTORE_PASSWORD ANDROID_KEY_ALIAS ANDROID_KEY_PASSWORD; do
+            if [[ -z "${!name:-}" ]]; then
+              echo "ERROR: missing repository secret ${name}" >&2
+              missing=1
+            fi
+          done
+          if [[ "$missing" -ne 0 ]]; then
+            echo "Store packaging requires ANDROID_KEYSTORE_* secrets (no debug-signed AAB)." >&2
+            exit 1
+          fi
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 -d > android/upload-keystore.jks
+          cat > android/key.properties <<EOF
+          storePassword=${ANDROID_KEYSTORE_PASSWORD}
+          keyPassword=${ANDROID_KEY_PASSWORD}
+          keyAlias=${ANDROID_KEY_ALIAS}
+          storeFile=${GITHUB_WORKSPACE}/android/upload-keystore.jks
+          EOF
+          sed -i 's/^[[:space:]]*//' android/key.properties
+          echo "Upload keystore configured (alias=${ANDROID_KEY_ALIAS})."
+
+      - name: Build release APK + AAB
+        run: |
+          set -euo pipefail
+          flutter build apk --release \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.version_code }}"
+          flutter build appbundle --release \
+            --build-name="${{ steps.version.outputs.version_name }}" \
+            --build-number="${{ steps.version.outputs.version_code }}"
+
+      - name: Stage and verify artifacts
+        env:
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+        run: |
+          set -euo pipefail
+          v="${{ steps.version.outputs.full_version }}"
+          mkdir -p dist
+          cp build/app/outputs/flutter-apk/app-release.apk "dist/wc26-stickers-${v}.apk"
+          cp build/app/outputs/bundle/release/app-release.aab "dist/wc26-stickers-${v}.aab"
+          cp VERSION.txt dist/
+
+          if unzip -l "dist/wc26-stickers-${v}.aab" | grep -q 'test_fixtures/'; then
+            echo "ERROR: assets/test_fixtures shipped in AAB" >&2
+            exit 1
+          fi
+
+          # Prove the AAB is signed with the upload key (not debug).
+          jarsigner -verify -verbose -certs "dist/wc26-stickers-${v}.aab" | tee /tmp/aab-verify.txt
+          if grep -qiE 'jar is unsigned|not signed' /tmp/aab-verify.txt; then
+            echo "ERROR: AAB failed jarsigner verify" >&2
+            exit 1
+          fi
+          if grep -qi 'Android Debug' /tmp/aab-verify.txt; then
+            echo "ERROR: AAB appears debug-signed — upload keystore not applied" >&2
+            exit 1
+          fi
+          echo "AAB jarsigner verify OK (alias expected: ${ANDROID_KEY_ALIAS})"
+
+          # APK: apksigner if the SDK build-tools are on PATH.
+          if command -v apksigner >/dev/null 2>&1; then
+            apksigner verify --print-certs "dist/wc26-stickers-${v}.apk"
+          else
+            bt="$(find "${ANDROID_HOME:-$HOME/Android/Sdk}" -type f -name apksigner 2>/dev/null | sort -V | tail -1 || true)"
+            if [[ -n "${bt}" ]]; then
+              "$bt" verify --print-certs "dist/wc26-stickers-${v}.apk"
+            else
+              jarsigner -verify -verbose -certs "dist/wc26-stickers-${v}.apk" | tee /tmp/apk-verify.txt
+              if grep -qi 'Android Debug' /tmp/apk-verify.txt; then
+                echo "ERROR: APK appears debug-signed" >&2
+                exit 1
+              fi
+            fi
+          fi
+
+          ls -lh dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: wc26-stickers-${{ steps.version.outputs.full_version }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Create GitHub Release
+        if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          tag="${GITHUB_REF_NAME}"
+          v="${{ steps.version.outputs.full_version }}"
+          notes="$(cat <<EOF
+          ## WC26 Stickers ${v}
+
+          **Play Store upload:** \`wc26-stickers-${v}.aab\` (signed with the upload keystore).
+
+          **Sideload / internal:** \`wc26-stickers-${v}.apk\`
+
+          Version comes from the tag (\`vX.Y.Z\` or \`vX.Y.Z+N\`). Download the AAB and upload it in Play Console → Production / testing track.
+          EOF
+          )"
+          gh release create "$tag" dist/* \
+            --title "WC26 Stickers ${v}" \
+            --notes "$notes"
