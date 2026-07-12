@@ -74,7 +74,7 @@ String decodeBackupPayload(String input) {
     );
   }
 
-  throw FormatException(
+  throw const FormatException(
     'Expected backup code starting with "$collectionBackupPrefix", '
     '"$collectionBackupPrefixLegacy", or "$missingStickersBackupPrefix", '
     'or raw JSON',

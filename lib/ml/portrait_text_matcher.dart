@@ -50,7 +50,6 @@ class PortraitTextMatcher {
   final double portraitOverlayH;
   final double portraitCenterBelowFraction;
 
-  static final _teamOnly = RegExp(r'^[A-Z]{2,3}$');
   static final _numberOnly = RegExp(r'^\d{1,2}$');
   static final _catalogCode = RegExp(r'^[A-Z]{2,3}\d{1,2}$');
 

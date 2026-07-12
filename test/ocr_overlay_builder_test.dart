@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:panini_wc26_tracker/features/scan_page/camera_preview_mapper.dart';
 import 'package:panini_wc26_tracker/features/scan_page/ocr_overlay_builder.dart';
 import 'package:panini_wc26_tracker/features/scan_page/slot_overlay_painter.dart';
 import 'package:panini_wc26_tracker/ml/ocr_text_line.dart';

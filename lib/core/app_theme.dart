@@ -80,10 +80,10 @@ abstract final class AppTheme {
           borderSide: BorderSide(color: scheme.primary, width: 2),
         ),
       ),
-      segmentedButtonTheme: SegmentedButtonThemeData(
+      segmentedButtonTheme: const SegmentedButtonThemeData(
         style: ButtonStyle(
           visualDensity: VisualDensity.compact,
-          padding: const WidgetStatePropertyAll(
+          padding: WidgetStatePropertyAll(
             EdgeInsets.symmetric(horizontal: 12, vertical: 8),
           ),
         ),

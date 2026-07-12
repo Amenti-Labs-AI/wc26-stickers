@@ -277,7 +277,7 @@ class SettingsScreen extends ConsumerWidget {
     final launched = await launchUrl(uri, mode: LaunchMode.externalApplication);
     if (!context.mounted || launched) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Could not open ${AppInfo.websiteUrl}')),
+      const SnackBar(content: Text('Could not open ${AppInfo.websiteUrl}')),
     );
   }
 

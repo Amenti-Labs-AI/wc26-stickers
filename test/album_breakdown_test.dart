@@ -60,7 +60,7 @@ void main() {
     test('counts base swaps by album group kind', () {
       final byTeam = {
         'BRA': [
-          Sticker(
+          const Sticker(
             code: 'BRA1',
             teamCode: 'BRA',
             teamName: 'Brazil',
@@ -71,7 +71,7 @@ void main() {
           ),
         ],
         'CC': [
-          Sticker(
+          const Sticker(
             code: 'CC1',
             teamCode: 'CC',
             teamName: 'Spain',
@@ -93,7 +93,7 @@ void main() {
     test('excludes parallel counts from swap totals', () {
       final byTeam = {
         'ARG': [
-          Sticker(
+          const Sticker(
             code: 'ARG17',
             teamCode: 'ARG',
             teamName: 'Argentina',
@@ -101,7 +101,7 @@ void main() {
             category: 'player',
             group: 'Group',
             ownedCount: 1,
-            parallelCounts: const {ParallelKind.purple: 2},
+            parallelCounts: {ParallelKind.purple: 2},
           ),
         ],
       };
@@ -116,7 +116,7 @@ void main() {
     test('counts parallels separately from base swaps', () {
       final byTeam = {
         'ARG': [
-          Sticker(
+          const Sticker(
             code: 'ARG17',
             teamCode: 'ARG',
             teamName: 'Argentina',
@@ -124,7 +124,7 @@ void main() {
             category: 'player',
             group: 'Group',
             ownedCount: 3,
-            parallelCounts: const {ParallelKind.purple: 2},
+            parallelCounts: {ParallelKind.purple: 2},
           ),
         ],
       };
@@ -170,7 +170,7 @@ void main() {
   group('formatSwapsExport', () {
     test('newline list uses base swap count only', () {
       final text = formatSwapsExport([
-        Sticker(
+        const Sticker(
           code: 'MEX16',
           teamCode: 'MEX',
           teamName: 'Mexico',
@@ -178,9 +178,9 @@ void main() {
           category: 'player',
           group: 'Group',
           ownedCount: 1,
-          parallelCounts: const {ParallelKind.blue: 1},
+          parallelCounts: {ParallelKind.blue: 1},
         ),
-        Sticker(
+        const Sticker(
           code: 'MEX3',
           teamCode: 'MEX',
           teamName: 'Mexico',
@@ -189,7 +189,7 @@ void main() {
           group: 'Group',
           ownedCount: 3,
         ),
-        Sticker(
+        const Sticker(
           code: 'ARG17',
           teamCode: 'ARG',
           teamName: 'Argentina',
@@ -197,7 +197,7 @@ void main() {
           category: 'player',
           group: 'Group',
           ownedCount: 1,
-          parallelCounts: const {ParallelKind.purple: 2},
+          parallelCounts: {ParallelKind.purple: 2},
         ),
       ]);
       expect(text, 'MEX3 - 2');
@@ -207,35 +207,35 @@ void main() {
   group('formatParallelsExport', () {
     test('groups by color rarest first then team/slot with blank lines', () {
       final text = formatParallelsExport([
-        Sticker(
+        const Sticker(
           code: 'MEX16',
           teamCode: 'MEX',
           teamName: 'Mexico',
           slotNumber: 16,
           category: 'player',
           group: 'Group',
-          parallelCounts: const {ParallelKind.blue: 1},
+          parallelCounts: {ParallelKind.blue: 1},
         ),
-        Sticker(
+        const Sticker(
           code: 'MEX3',
           teamCode: 'MEX',
           teamName: 'Mexico',
           slotNumber: 3,
           category: 'player',
           group: 'Group',
-          parallelCounts: const {
+          parallelCounts: {
             ParallelKind.blue: 2,
             ParallelKind.purple: 1,
           },
         ),
-        Sticker(
+        const Sticker(
           code: 'ARG17',
           teamCode: 'ARG',
           teamName: 'Argentina',
           slotNumber: 17,
           category: 'player',
           group: 'Group',
-          parallelCounts: const {ParallelKind.purple: 2},
+          parallelCounts: {ParallelKind.purple: 2},
         ),
       ]);
       expect(

@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:camera/camera.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,6 +15,7 @@ void main() {
       final bytes = Uint8List.fromList(
         List<int>.filled(width * height + (width * height ~/ 2), 128),
       );
+      // ignore: deprecated_member_use
       final frame = CameraImage.fromPlatformData({
         'width': width,
         'height': height,
