@@ -14,10 +14,10 @@ ROOT = Path(__file__).resolve().parents[1]
 FLUTTER = ROOT / ".tools" / "flutter"
 TPL = FLUTTER / "packages" / "flutter_tools" / "templates" / "app"
 
-ANDROID_ID = "com.amentilabs.panini_wc26_tracker"
-IOS_ID = "com.amentilabs.paniniWc26Tracker"
-PROJECT_NAME = "panini_wc26_tracker"
-TITLE = "WC26 Album Tracker"
+ANDROID_ID = "com.amentilabs.wc26stickers"
+IOS_ID = "com.amentilabs.wc26Stickers"
+PROJECT_NAME = "wc26_stickers"
+TITLE = "WC26 Stickers"
 GRADLE = "8.12"
 AGP = "8.9.1"
 KOTLIN = "2.1.0"
@@ -120,7 +120,7 @@ def scaffold_android() -> None:
 
     kt = subst((src_kotlin / "app" / "src" / "main" / "kotlin" / "androidIdentifier" / "MainActivity.kt.tmpl").read_text())
     write_text(
-        app / "src" / "main" / "kotlin" / "com" / "amentilabs" / "panini_wc26_tracker" / "MainActivity.kt",
+        app / "src" / "main" / "kotlin" / "com" / "amentilabs" / "wc26_stickers" / "MainActivity.kt",
         kt,
     )
 

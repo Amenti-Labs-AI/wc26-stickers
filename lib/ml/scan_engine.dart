@@ -7,22 +7,39 @@ enum ScanEngine {
   String get storageKey => name;
 
   String get displayName => switch (this) {
-        ScanEngine.portraitOcr => 'Portrait label OCR',
+        ScanEngine.portraitOcr => 'Scanning',
       };
 
   String get subtitle => switch (this) {
-        ScanEngine.portraitOcr =>
-          'Reads team code and slot number from printed portrait labels.',
+        ScanEngine.portraitOcr => 'How to scan album pages',
       };
 
-  List<String> get detailBullets => switch (this) {
+  String get modesTitle => 'Collection modes';
+
+  String get modesSubtitle => 'How your collection starts';
+
+  /// Collection start modes (Settings → Instructions).
+  List<String> get modeBullets => switch (this) {
         ScanEngine.portraitOcr => const [
-              'Camera frames are analyzed with on-device text recognition.',
-              'Empty slots print the team code and number (e.g. MEX 4) in the placeholder.',
-              'The scanner locks to your team page and filters matches to that team.',
-              'Confirmed need stickers are saved to your collection automatically.',
+              'Scan for gaps — all stickers start owned. Scan empty slots to '
+                  'build Need.',
+              'Empty collection — all start missing. Mark owned in Collection '
+                  'as you get them.',
+              'Choose on first launch, or later under Reset collection.',
             ],
       };
+
+  /// Live scanning (Settings → Instructions).
+  List<String> get scanBullets => switch (this) {
+        ScanEngine.portraitOcr => const [
+              'Point the camera at a page to read empty slot codes (e.g. MEX 4).',
+              'Locks onto the team page for accurate matches.',
+              'Red = Need (saved). Yellow = owned (visual only).',
+            ],
+      };
+
+  /// Combined bullets (modes then scanning) for tests / legacy callers.
+  List<String> get detailBullets => [...modeBullets, ...scanBullets];
 
   static ScanEngine fromStorage(String? raw) {
     // Live scan always uses portrait OCR; legacy prefs are ignored.

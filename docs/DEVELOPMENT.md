@@ -1,4 +1,4 @@
-# Development — WC26 Album Tracker
+# Development — WC26 Stickers
 
 Build, test, and deploy the Flutter app. For product overview and CV pipeline summary, see [README](../README.md).
 
@@ -110,7 +110,7 @@ Manual Android one-liner: `adb exec-out screencap -p > docs/screenshots/home.png
 | `lib/` | Dart app |
 | `assets/catalog/` | 992-sticker JSON catalog |
 | `assets/page_templates/` | Per-team slot codes and layout metadata |
-| `assets/test_fixtures/` | OCR integration test photos |
+| `assets/test_fixtures/` | OCR host-test photos (not declared in pubspec — not shipped) |
 | `ios/src/` | iOS native app — [ios/README.md](../ios/README.md) |
 | `android/src/` | Android app module — [android/README.md](../android/README.md) |
 | `macos/src/` | macOS shell (optional; no camera scan) |
@@ -120,4 +120,4 @@ Platform roots (`ios/Runner`, `android/app`, …) are **symlinks** into `src/` f
 
 ## License
 
-[MIT](../LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/)
+[Proprietary](../LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/). All rights reserved.

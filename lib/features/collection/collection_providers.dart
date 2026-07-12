@@ -5,7 +5,34 @@ import '../../core/parallel_kind.dart';
 import '../../data/database/app_database.dart';
 import '../../data/models/parallel_price_guide.dart';
 import '../../data/models/sticker.dart';
+
 final databaseProvider = Provider<AppDatabase>((ref) => AppDatabase.instance);
+
+/// Bottom-nav tab index for [HomeShell] (0 Home, 1 Collection, 2 Scan, 3 Settings).
+final shellTabIndexProvider = StateProvider<int>((ref) => 0);
+
+/// Active Collection list filter (driven by Collection UI and Home deep-links).
+final collectionFilterProvider =
+    StateProvider<StickerFilter>((ref) => StickerFilter.all);
+
+/// How Collection teams are ordered in the expandable list.
+enum CollectionTeamSort {
+  /// FWC → Groups A–L → Coca-Cola; within a group by album page.
+  albumOrder,
+
+  /// A–Z by section title (team name).
+  alphabetical,
+}
+
+/// Default: album / group order.
+final collectionTeamSortProvider =
+    StateProvider<CollectionTeamSort>((ref) => CollectionTeamSort.albumOrder);
+
+/// Switch to Collection with [filter] applied.
+void openCollectionFilter(WidgetRef ref, StickerFilter filter) {
+  ref.read(collectionFilterProvider.notifier).state = filter;
+  ref.read(shellTabIndexProvider.notifier).state = 1;
+}
 
 final collectionStatsProvider = FutureProvider<CollectionStats>((ref) async {
   return AppDatabase.instance.getStats();

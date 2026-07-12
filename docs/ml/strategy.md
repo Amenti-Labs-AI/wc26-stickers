@@ -1,4 +1,4 @@
-# ML strategy — WC26 Album Tracker
+# ML strategy — WC26 Stickers
 
 Last updated: 2026-06-19
 

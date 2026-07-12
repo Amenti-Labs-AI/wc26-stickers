@@ -37,7 +37,7 @@ adb -s "$DEVICE" shell setprop log.tag.TransportRuntime ERROR 2>/dev/null || tru
 
 GIT_SHA="$(git -C "$ROOT" rev-parse --short HEAD 2>/dev/null || echo dev)"
 echo ""
-echo "=== Deploy WC26 Album Tracker @ ${GIT_SHA} ==="
+echo "=== Deploy WC26 Stickers @ ${GIT_SHA} ==="
 echo "    Live scan: portrait OCR (see docs/ml/strategy.md)"
 echo "    Press R in this terminal for full restart after code changes"
 echo ""

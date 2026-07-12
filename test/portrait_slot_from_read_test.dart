@@ -3,7 +3,7 @@ import 'package:panini_wc26_tracker/ml/portrait_slot_from_read.dart';
 
 void main() {
   group('portraitSlotFromReadRect', () {
-    test('scales from OCR read bbox not fixed minimums', () {
+    test('scales from OCR read bbox with fixed portrait aspect', () {
       // page_8 MEX4-ish OCR cluster from device integration run.
       const readX = 0.462;
       const readY = 0.371;
@@ -19,10 +19,9 @@ void main() {
         stickerCode: 'MEX4',
       );
 
-      expect(slot.w, closeTo(readW / ocrLabelWidthShare, 0.01));
-      expect(slot.h, closeTo(readH / ocrLabelHeightShare, 0.01));
-      expect(slot.w, lessThan(0.24));
-      expect(slot.h, lessThan(0.30));
+      expect(slot.w / slot.h, closeTo(portraitSlotAspect, 0.02));
+      expect(slot.w, lessThanOrEqualTo(maxPortraitSlotWidth));
+      expect(slot.h, lessThanOrEqualTo(maxPortraitSlotHeight));
       expect(slot.y, lessThan(readY));
       expect(slot.x + slot.w / 2, closeTo(readX + readW / 2, 0.02));
       expect(slot.y + slot.h, greaterThan(readY + readH));
@@ -117,17 +116,18 @@ void main() {
       expect(slot.h, greaterThan(slot.w));
     });
 
-    test('wide horizontal OCR read uses landscape without slot hint', () {
+    test('wide horizontal OCR read stays portrait without landscape slot hint', () {
       final slot = portraitSlotFromReadRect(
         readX: 0.10,
         readY: 0.30,
-        readW: 0.16,
+        readW: 0.12,
         readH: 0.05,
         slotNumber: 2,
         stickerCode: 'MEX2',
       );
 
-      expect(slot.w / slot.h, greaterThanOrEqualTo(minLandscapeAspect));
+      expect(slot.w / slot.h, closeTo(portraitSlotAspect, 0.02));
+      expect(slot.h, greaterThan(slot.w));
     });
   });
 }

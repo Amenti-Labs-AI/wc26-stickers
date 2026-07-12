@@ -1,18 +1,32 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:sqflite/sqflite.dart';
 
 import '../../core/parallel_kind.dart';
 import '../../core/sticker_search_query.dart';
+import '../models/collection_start_mode.dart';
 import '../models/sticker.dart';
 
 class AppDatabase {
   AppDatabase._();
   static final AppDatabase instance = AppDatabase._();
 
+  static const _startModeKey = 'collection_start_mode';
+
   Database? _db;
+
+  /// When set, [database] opens this path instead of the app documents DB.
+  @visibleForTesting
+  String? debugDatabasePath;
+
+  @visibleForTesting
+  Future<void> debugClose() async {
+    await _db?.close();
+    _db = null;
+  }
 
   Future<Database> get database async {
     if (_db != null) return _db!;
@@ -21,11 +35,11 @@ class AppDatabase {
   }
 
   Future<Database> _open() async {
-    final dbPath = await getDatabasesPath();
-    final path = p.join(dbPath, 'panini_wc26.db');
+    final path = debugDatabasePath ??
+        p.join(await getDatabasesPath(), 'wc26_stickers.db');
     return openDatabase(
       path,
-      version: 7,
+      version: 10,
       onCreate: (db, version) async {
         await _createSchema(db);
         await _seedCatalog(db);
@@ -53,11 +67,25 @@ class AppDatabase {
         if (oldVersion < 7) {
           await _createParallelInventoryTable(db);
         }
+        if (oldVersion < 8) {
+          await _createAppSettingsTable(db);
+          // Existing installs already chose (implicitly) owned + scan.
+          await _setSetting(db, _startModeKey, CollectionStartMode.ownedScan.storageKey);
+        }
+        if (oldVersion < 9) {
+          // Refresh printed album_page values (MEX 8–9, etc.).
+          await _syncCatalogFromAsset(db);
+        }
+        if (oldVersion < 10) {
+          // Fix Group G+ pages (BEL 58 after mid-album gap).
+          await _syncCatalogFromAsset(db);
+        }
       },
       onOpen: (db) async {
         await _dedupeTables(db);
         await _createScannedMissingTable(db);
         await _createParallelInventoryTable(db);
+        await _createAppSettingsTable(db);
         await _ensureCollectionRows(db);
       },
     );
@@ -86,7 +114,61 @@ class AppDatabase {
     ''');
     await _createScannedMissingTable(db);
     await _createParallelInventoryTable(db);
+    await _createAppSettingsTable(db);
   }
+
+  Future<void> _createAppSettingsTable(Database db) async {
+    await db.execute('''
+      CREATE TABLE IF NOT EXISTS app_settings (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL
+      )
+    ''');
+  }
+
+  Future<void> _setSetting(DatabaseExecutor db, String key, String value) async {
+    await db.insert(
+      'app_settings',
+      {'key': key, 'value': value},
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    );
+  }
+
+  Future<String?> _getSetting(DatabaseExecutor db, String key) async {
+    final rows = await db.query(
+      'app_settings',
+      columns: ['value'],
+      where: 'key = ?',
+      whereArgs: [key],
+      limit: 1,
+    );
+    if (rows.isEmpty) return null;
+    return rows.first['value'] as String?;
+  }
+
+  Future<CollectionStartMode?> getCollectionStartMode() async {
+    final db = await database;
+    return CollectionStartMode.fromStorageKey(await _getSetting(db, _startModeKey));
+  }
+
+  Future<bool> hasCompletedCollectionSetup() async {
+    return (await getCollectionStartMode()) != null;
+  }
+
+  /// Resets owned/need/parallels and records the chosen start mode.
+  Future<void> applyCollectionStartMode(CollectionStartMode mode) async {
+    final db = await database;
+    final ownedCount = mode == CollectionStartMode.ownedScan ? 1 : 0;
+    await db.transaction((txn) async {
+      await txn.update('collection', {'owned_count': ownedCount});
+      await txn.delete('scanned_missing');
+      await txn.delete('parallel_inventory');
+      await _setSetting(txn, _startModeKey, mode.storageKey);
+    });
+  }
+
+  Future<void> resetCollection(CollectionStartMode mode) =>
+      applyCollectionStartMode(mode);
 
   Future<void> _createParallelInventoryTable(Database db) async {
     await db.execute('''
@@ -490,6 +572,20 @@ class AppDatabase {
     return rows.map((r) => (r['code'] as String).toUpperCase()).toSet();
   }
 
+  /// Stickers marked owned in the UI sense: owned_count >= 1 and not Need.
+  /// Used for scan discrepancy overlays (yellow) without changing the DB.
+  Future<Set<String>> getOwnedNotNeedCodes() async {
+    final db = await database;
+    final rows = await db.rawQuery('''
+      SELECT col.code
+      FROM collection col
+      LEFT JOIN scanned_missing sm ON sm.code = col.code
+      WHERE col.owned_count >= 1
+        AND sm.code IS NULL
+    ''');
+    return rows.map((r) => (r['code'] as String).toUpperCase()).toSet();
+  }
+
   /// Records empty slots detected by the live scan (Missing tab source).
   Future<void> mergeScannedMissingCodes(Iterable<String> codes) async {
     final now = DateTime.now().millisecondsSinceEpoch;
@@ -647,6 +743,7 @@ class AppDatabase {
   }
 
   static const missingStickersExportType = 'missing_stickers';
+  static const collectionBackupExportType = 'collection_backup';
 
   Future<String> exportMissingStickersJson() async {
     final codes = (await getScannedMissingCodes()).toList()..sort();
@@ -683,14 +780,172 @@ class AppDatabase {
     return codes.length;
   }
 
-  Future<void> resetCollection() async {
+  Future<String> exportCollectionBackupJson() async {
     final db = await database;
-    await db.transaction((txn) async {
-      await txn.update('collection', {'owned_count': 1});
-      await txn.delete('scanned_missing');
-      await txn.delete('parallel_inventory');
+    final collectionRows = await db.query(
+      'collection',
+      columns: ['code', 'owned_count'],
+      orderBy: 'code ASC',
+    );
+    final missing = (await getScannedMissingCodes()).toList()..sort();
+    final parallelRows = await db.query(
+      'parallel_inventory',
+      columns: ['code', 'kind', 'count'],
+      where: 'count > 0',
+      orderBy: 'code ASC, kind ASC',
+    );
+    final startMode = await getCollectionStartMode();
+
+    return jsonEncode({
+      'version': 1,
+      'type': collectionBackupExportType,
+      'exported_at': DateTime.now().toUtc().toIso8601String(),
+      if (startMode != null) 'start_mode': startMode.storageKey,
+      'collection': [
+        for (final row in collectionRows)
+          {
+            'code': row['code'],
+            'owned_count': row['owned_count'],
+          },
+      ],
+      'scanned_missing': missing,
+      'parallels': [
+        for (final row in parallelRows)
+          {
+            'code': row['code'],
+            'kind': row['kind'],
+            'count': row['count'],
+          },
+      ],
     });
   }
+
+  /// Full replace restore of owned counts, need list, and parallels.
+  Future<CollectionBackupImportResult> importCollectionBackupJson(
+    String jsonStr, {
+    bool replace = true,
+  }) async {
+    final data = jsonDecode(jsonStr) as Map<String, dynamic>;
+    final type = data['type'] as String?;
+    if (type != collectionBackupExportType) {
+      throw FormatException(
+        'Expected type "$collectionBackupExportType", got "$type"',
+      );
+    }
+    final rawCollection = data['collection'];
+    if (rawCollection is! List<dynamic>) {
+      throw const FormatException('Missing or invalid "collection" array');
+    }
+    final rawMissing = data['scanned_missing'];
+    if (rawMissing is! List<dynamic>) {
+      throw const FormatException('Missing or invalid "scanned_missing" array');
+    }
+    final rawParallels = data['parallels'];
+    if (rawParallels is! List<dynamic>) {
+      throw const FormatException('Missing or invalid "parallels" array');
+    }
+
+    final ownedByCode = <String, int>{};
+    for (final item in rawCollection) {
+      if (item is! Map) continue;
+      final code = (item['code'] as String?)?.toUpperCase();
+      final owned = item['owned_count'];
+      if (code == null || owned is! int) continue;
+      ownedByCode[code] = owned.clamp(0, 999);
+    }
+
+    final missingCodes =
+        rawMissing.map((c) => (c as String).toUpperCase()).toList();
+
+    final parallelEntries = <({String code, String kind, int count})>[];
+    for (final item in rawParallels) {
+      if (item is! Map) continue;
+      final code = (item['code'] as String?)?.toUpperCase();
+      final kind = item['kind'] as String?;
+      final count = item['count'];
+      if (code == null || kind == null || count is! int) continue;
+      if (ParallelKind.fromStorageKey(kind) == null) continue;
+      final n = count.clamp(0, 999);
+      if (n <= 0) continue;
+      parallelEntries.add((code: code, kind: kind, count: n));
+    }
+
+    final startMode = CollectionStartMode.fromStorageKey(
+      data['start_mode'] as String?,
+    );
+
+    final db = await database;
+    await db.transaction((txn) async {
+      if (replace) {
+        await txn.delete('scanned_missing');
+        await txn.delete('parallel_inventory');
+        // Default any catalog code not in the file to owned (1), then overlay.
+        await txn.update('collection', {'owned_count': 1});
+      }
+
+      for (final entry in ownedByCode.entries) {
+        await txn.update(
+          'collection',
+          {'owned_count': entry.value},
+          where: 'code = ?',
+          whereArgs: [entry.key],
+        );
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+      for (final code in missingCodes) {
+        final exists = await txn.rawQuery(
+          'SELECT 1 FROM catalog WHERE code = ? LIMIT 1',
+          [code],
+        );
+        if (exists.isEmpty) continue;
+        await txn.insert(
+          'scanned_missing',
+          {'code': code, 'last_seen_at': now},
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      for (final p in parallelEntries) {
+        final exists = await txn.rawQuery(
+          'SELECT 1 FROM catalog WHERE code = ? LIMIT 1',
+          [p.code],
+        );
+        if (exists.isEmpty) continue;
+        await txn.insert(
+          'parallel_inventory',
+          {
+            'code': p.code,
+            'kind': p.kind,
+            'count': p.count,
+          },
+          conflictAlgorithm: ConflictAlgorithm.replace,
+        );
+      }
+
+      if (startMode != null) {
+        await _setSetting(txn, _startModeKey, startMode.storageKey);
+      }
+    });
+
+    return CollectionBackupImportResult(
+      collectionCount: ownedByCode.length,
+      missingCount: missingCodes.length,
+      parallelCount: parallelEntries.length,
+    );
+  }
+}
+
+class CollectionBackupImportResult {
+  const CollectionBackupImportResult({
+    required this.collectionCount,
+    required this.missingCount,
+    required this.parallelCount,
+  });
+
+  final int collectionCount;
+  final int missingCount;
+  final int parallelCount;
 }
 
 enum StickerFilter { all, owned, missing, scannedMissing, duplicates, parallels }

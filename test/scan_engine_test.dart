@@ -13,8 +13,15 @@ void main() {
   });
 
   test('portrait OCR metadata is present', () {
-    expect(ScanEngine.portraitOcr.displayName, isNotEmpty);
+    expect(ScanEngine.portraitOcr.displayName, 'Scanning');
+    expect(ScanEngine.portraitOcr.modesTitle, 'Collection modes');
     expect(ScanEngine.portraitOcr.subtitle, isNotEmpty);
-    expect(ScanEngine.portraitOcr.detailBullets, isNotEmpty);
+    expect(ScanEngine.portraitOcr.modeBullets, isNotEmpty);
+    expect(ScanEngine.portraitOcr.scanBullets, isNotEmpty);
+    expect(
+      ScanEngine.portraitOcr.detailBullets.length,
+      ScanEngine.portraitOcr.modeBullets.length +
+          ScanEngine.portraitOcr.scanBullets.length,
+    );
   });
 }

@@ -55,6 +55,9 @@ app.*.map.json
 /android/src/debug
 /android/src/profile
 /android/src/release
+/android/build/
+*.apk
+*.aab
 
 # Local Flutter SDK pin (optional vendored SDK)
 .tools/

@@ -1,120 +1,105 @@
 #!/usr/bin/env python3
-"""Build launcher icons from the Amenti Labs logo mark."""
+"""Build WC26 launcher + in-app icons from the stacked 20/26 logo source."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from PIL import Image, ImageDraw, ImageFilter
+from PIL import Image, ImageFilter
 
 ROOT = Path(__file__).resolve().parents[1]
 BRANDING = ROOT / "assets" / "branding"
+SOURCE = BRANDING / "wc26_logo_source.png"
 MASTER = BRANDING / "app_icon.png"
 FOREGROUND = BRANDING / "app_icon_foreground.png"
-MARK_UI = BRANDING / "amenti_logo_mark.png"
+IN_APP = BRANDING / "wc26_logo.png"
 SIZE = 1024
+IN_APP_SIZE = 256
 
-# Amenti brand — emerald mark on deep forest background (#021a14 meta theme).
-BG_TOP = (2, 26, 20)
-BG_BOTTOM = (1, 10, 8)
-MARK = (4, 120, 87, 255)
-RING = (255, 255, 255, 28)
-
-# SVG viewBox for logo-mark.svg
-MARK_W = 52.0
-MARK_H = 42.0
+# Near-black treated as background when extracting the mark.
+BG_LUMA_MAX = 28
 
 
-def _lerp(a: int, b: int, t: float) -> int:
-    return int(a + (b - a) * t)
+def _luma(r: int, g: int, b: int) -> float:
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b
 
 
-def gradient_background(size: int) -> Image.Image:
-    img = Image.new("RGB", (size, size))
-    px = img.load()
-    for y in range(size):
-        t = y / max(1, size - 1)
-        color = (
-            _lerp(BG_TOP[0], BG_BOTTOM[0], t),
-            _lerp(BG_TOP[1], BG_BOTTOM[1], t),
-            _lerp(BG_TOP[2], BG_BOTTOM[2], t),
-        )
-        for x in range(size):
-            px[x, y] = color
-    return img
+def load_source() -> Image.Image:
+    if not SOURCE.exists():
+        raise SystemExit(f"Missing source logo: {SOURCE}")
+    return Image.open(SOURCE).convert("RGBA").resize((SIZE, SIZE), Image.Resampling.LANCZOS)
 
 
-def render_amenti_mark(size: int, *, width_ratio: float = 0.52) -> Image.Image:
-    target_w = int(size * width_ratio)
-    scale = target_w / MARK_W
-    target_h = max(1, int(MARK_H * scale))
-    canvas = Image.new("RGBA", (size, size), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(canvas)
+def extract_mark(src: Image.Image) -> Image.Image:
+    """Keep light/gold mark pixels; make near-black background transparent."""
+    px = src.load()
+    out = Image.new("RGBA", src.size, (0, 0, 0, 0))
+    out_px = out.load()
+    for y in range(src.size[1]):
+        for x in range(src.size[0]):
+            r, g, b, a = px[x, y]
+            if a < 8:
+                continue
+            if _luma(r, g, b) <= BG_LUMA_MAX:
+                continue
+            out_px[x, y] = (r, g, b, a)
+    return out
 
-    ox = (size - target_w) / 2
-    oy = (size - target_h) / 2
 
-    def pt(x: float, y: float) -> tuple[float, float]:
-        return (ox + x * scale, oy + y * scale)
+def content_bbox(mark: Image.Image) -> tuple[int, int, int, int]:
+    alpha = mark.split()[-1]
+    bbox = alpha.getbbox()
+    if bbox is None:
+        raise SystemExit("Logo mark extraction produced an empty image")
+    return bbox
 
-    draw.polygon(
-        [pt(26, 12), pt(3, 30), pt(29, 30)],
-        fill=MARK,
-    )
-    draw.polygon(
-        [pt(26, 12), pt(35, 30), pt(49, 30)],
-        fill=MARK,
-    )
+
+def fit_mark(
+    mark: Image.Image,
+    canvas_size: int,
+    *,
+    width_ratio: float,
+) -> Image.Image:
+    left, top, right, bottom = content_bbox(mark)
+    cropped = mark.crop((left, top, right, bottom))
+    target_w = max(1, int(canvas_size * width_ratio))
+    scale = target_w / cropped.size[0]
+    target_h = max(1, int(cropped.size[1] * scale))
+    resized = cropped.resize((target_w, target_h), Image.Resampling.LANCZOS)
+    canvas = Image.new("RGBA", (canvas_size, canvas_size), (0, 0, 0, 0))
+    ox = (canvas_size - target_w) // 2
+    oy = (canvas_size - target_h) // 2
+    canvas.alpha_composite(resized, (ox, oy))
     return canvas
 
 
-def build_master(mark: Image.Image) -> Image.Image:
-    base = gradient_background(SIZE)
-
-    vignette = Image.new("L", (SIZE, SIZE), 0)
-    vdraw = ImageDraw.Draw(vignette)
-    vdraw.ellipse((-120, -120, SIZE + 120, SIZE + 120), fill=255)
-    vignette = vignette.filter(ImageFilter.GaussianBlur(90))
-    base = Image.composite(
-        Image.new("RGB", (SIZE, SIZE), (0, 0, 0)),
-        base,
-        Image.eval(vignette, lambda p: 255 - int(p * 0.22)),
-    )
-
-    composed = base.convert("RGBA")
-    ring = Image.new("RGBA", (SIZE, SIZE), (0, 0, 0, 0))
-    ring_draw = ImageDraw.Draw(ring)
-    inset = int(SIZE * 0.08)
-    ring_draw.ellipse(
-        (inset, inset, SIZE - inset, SIZE - inset),
-        outline=RING,
-        width=5,
-    )
-    composed.alpha_composite(ring)
-    composed.alpha_composite(mark)
-    return composed.convert("RGB")
+def build_master(src: Image.Image) -> Image.Image:
+    """Full launcher icon: black square with stacked 20/26 mark."""
+    return src.convert("RGB")
 
 
 def build_foreground(mark: Image.Image) -> Image.Image:
-    return mark.copy()
+    """Adaptive-icon foreground with safe-zone padding."""
+    # Soft edge so downscales stay crisp.
+    return mark.filter(ImageFilter.SMOOTH_MORE)
 
 
 def main() -> None:
     BRANDING.mkdir(parents=True, exist_ok=True)
+    src = load_source()
+    mark = extract_mark(src)
 
-    mark = render_amenti_mark(SIZE, width_ratio=0.50)
-    master = build_master(mark)
-    foreground = build_foreground(render_amenti_mark(SIZE, width_ratio=0.58))
+    master = build_master(src)
+    foreground = build_foreground(fit_mark(mark, SIZE, width_ratio=0.72))
+    in_app = fit_mark(mark, IN_APP_SIZE, width_ratio=0.88)
 
     master.save(MASTER, optimize=True)
     foreground.save(FOREGROUND, optimize=True)
-
-    ui_mark = render_amenti_mark(256, width_ratio=0.62)
-    ui_mark.save(MARK_UI, optimize=True)
+    in_app.save(IN_APP, optimize=True)
 
     print(f"Wrote {MASTER}")
     print(f"Wrote {FOREGROUND}")
-    print(f"Wrote {MARK_UI}")
+    print(f"Wrote {IN_APP}")
 
 
 if __name__ == "__main__":

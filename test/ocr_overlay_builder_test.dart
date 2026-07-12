@@ -83,5 +83,82 @@ void main() {
       expect(remapped, hasLength(1));
       expect(remapped.first.x, isNot(closeTo(overlays.first.x, 0.0001)));
     });
+
+    test('uniqueOverlays keeps one entry per code', () {
+      final unique = OcrOverlayBuilder.uniqueOverlays([
+        const MissingSlotOverlay(
+          code: 'MEX4',
+          displayName: 'MEX4',
+          slotNumber: 4,
+          x: 0.10,
+          y: 0.20,
+          w: 0.18,
+          h: 0.28,
+        ),
+        const MissingSlotOverlay(
+          code: 'MEX4',
+          displayName: 'MEX4',
+          slotNumber: 4,
+          x: 0.11,
+          y: 0.21,
+          w: 0.20,
+          h: 0.30,
+        ),
+      ]);
+      expect(unique, hasLength(1));
+      expect(unique.first.w, 0.20);
+    });
+
+    test('uniqueOverlays drops spatially overlapping different codes', () {
+      final unique = OcrOverlayBuilder.uniqueOverlays([
+        const MissingSlotOverlay(
+          code: 'MEX4',
+          displayName: 'MEX4',
+          slotNumber: 4,
+          x: 0.10,
+          y: 0.20,
+          w: 0.20,
+          h: 0.30,
+        ),
+        const MissingSlotOverlay(
+          code: 'MEX5',
+          displayName: 'MEX5',
+          slotNumber: 5,
+          x: 0.12,
+          y: 0.22,
+          w: 0.18,
+          h: 0.28,
+        ),
+      ]);
+      expect(unique, hasLength(1));
+      expect(unique.first.code, 'MEX4');
+    });
+
+    test('uniqueOverlays preserves alreadyOwned when merging same code', () {
+      final unique = OcrOverlayBuilder.uniqueOverlays([
+        const MissingSlotOverlay(
+          code: 'MEX4',
+          displayName: 'MEX4',
+          slotNumber: 4,
+          x: 0.10,
+          y: 0.20,
+          w: 0.18,
+          h: 0.28,
+          state: SlotOverlayState.alreadyOwned,
+        ),
+        const MissingSlotOverlay(
+          code: 'MEX4',
+          displayName: 'MEX4',
+          slotNumber: 4,
+          x: 0.11,
+          y: 0.21,
+          w: 0.22,
+          h: 0.32,
+        ),
+      ]);
+      expect(unique, hasLength(1));
+      expect(unique.first.state, SlotOverlayState.alreadyOwned);
+      expect(unique.first.w, 0.22);
+    });
   });
 }

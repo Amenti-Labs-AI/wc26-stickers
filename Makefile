@@ -1,45 +1,50 @@
-# WC26 Album Tracker — dev entry point. Run `make` or `make help`.
+# WC26 Stickers — dev entry point. Run `make` or `make help`.
 .DEFAULT_GOAL := help
 
 IOS_SIMULATOR ?= iPhone 17 Pro
 export IOS_SIMULATOR
 
-.PHONY: help get test analyze ci scan-check scan-check-device ios device android android-device android-devices android-pull-db android-push-db android-screenshot ios-screenshot \
-        android-apk android-apk-release android-install android-install-release release \
+.PHONY: help get test test-coverage analyze ci scan-check scan-check-device ios device android android-device android-devices android-pull-db android-push-db android-screenshot ios-screenshot \
+        android-apk android-apk-release android-aab android-install android-install-release release \
         clean generate-catalog generate-templates
 
 help: ## Show dev commands
-	@printf "\nWC26 Album Tracker\n\n"
+	@printf "\nWC26 Stickers\n\n"
 	@printf "  Flutter\n"
 	@printf "    make get              flutter pub get\n"
 	@printf "    make test             flutter test\n"
+	@printf "    make test-coverage    flutter test --coverage\n"
 	@printf "    make scan-check       scan pipeline tests + fixture (run before deploy)\n"
 	@printf "    make scan-check-device  portrait OCR tests on USB Android/iOS\n"
 	@printf "    make scan-check-device-mex  MEX-only device OCR loop\n"
 	@printf "    make analyze          flutter analyze\n"
 	@printf "    make ci               analyze + test\n"
-	@printf "    make ios              iOS Simulator (collection; Scan → pick photo)\n"
+	@printf "    make ios              iOS Simulator\n"
 	@printf "    make device           physical iPhone (camera scan)\n"
 	@printf "    make android          Android device or emulator\n"
-	@printf "    make android-device   physical Android only (Pixel 4a / stock Android)\n"
+	@printf "    make android-device   physical Android only\n"
 	@printf "    make android-devices  list adb + flutter devices\n"
 	@printf "    make android-pull-db  pull device SQLite → data/device/\n"
 	@printf "    make android-push-db  push data/device/ SQLite → device\n"
 	@printf "    make android-screenshot  capture Android screen → docs/screenshots/\n"
 	@printf "    make ios-screenshot     capture iOS screen → docs/screenshots/\n"
 	@printf "    make android-apk      build debug APK\n"
+	@printf "    make android-aab      build release App Bundle (Play)\n"
 	@printf "    make android-install  build debug APK + adb install\n"
-	@printf "    make release          test + release APK (+ IPA on macOS)\n"
+	@printf "    make release          test + release AAB (+ IPA on macOS)\n"
 	@printf "\n  Assets (rare)\n"
 	@printf "    make generate-catalog\n"
 	@printf "    make generate-templates\n"
-	@printf "\n  Manual flutter: source ios/scripts/env.sh\n\n"
+	@printf "\n  Store prep: docs/publish-checklist.md\n\n"
 
 get: ## flutter pub get
 	flutter pub get
 
 test: get ## flutter test
 	flutter test
+
+test-coverage: get ## flutter test with coverage/lcov.info
+	flutter test --coverage
 
 analyze: ## flutter analyze
 	flutter analyze
@@ -60,6 +65,8 @@ scan-check: get ## Validate scan pipeline on host (~15s, no device)
 	@echo "scan-check passed — safe to deploy scan changes"
 
 scan-check-device: get ## Portrait OCR on physical device — MEX + QAT + FWC (ML Kit)
+	@echo "NOTE: OCR fixtures are host-disk only (not in the app binary)."
+	@echo "Prefer make scan-check on host for CI; device runs need fixtures re-bundled."
 	@device=$$(flutter devices --machine | python3 -c "import json,sys; d=[x for x in json.load(sys.stdin) if x.get('emulator') is False and x.get('isSupported') and ('android' in (x.get('targetPlatform') or '') or 'ios' in (x.get('targetPlatform') or ''))]; print(d[0]['id'] if d else '')"); \
 	if [ -z "$$device" ]; then echo "No physical Android/iOS device found"; exit 1; fi; \
 	flutter test integration_test/portrait_ocr_strategy_test.dart -d "$$device"
@@ -88,10 +95,10 @@ android-device-fresh: ## clean + physical Android deploy (guaranteed full rebuil
 android-devices: ## list adb + flutter devices
 	./android/scripts/devices.sh
 
-android-pull-db: ## pull panini_wc26.db from USB device → data/device/
+android-pull-db: ## pull wc26_stickers.db from USB device → data/device/
 	bash android/scripts/pull_db.sh
 
-android-push-db: ## push data/device/panini_wc26.db → USB device (overwrites)
+android-push-db: ## push data/device/wc26_stickers.db → USB device (overwrites)
 	bash android/scripts/push_db.sh
 
 android-screenshot: ## adb screencap → docs/screenshots/NAME.png (NAME=home)
@@ -106,21 +113,25 @@ android-apk: ## build debug APK → build/app/outputs/flutter-apk/
 android-apk-release: ## build release APK
 	BUILD=release ./android/scripts/build_apk.sh
 
+android-aab: ## build release App Bundle (Play Store)
+	flutter pub get
+	flutter build appbundle --release
+
 android-install: ## build debug APK + adb install -r
 	BUILD=debug ./android/scripts/install_apk.sh
 
 android-install-release: ## build release APK + adb install -r
 	BUILD=release ./android/scripts/install_apk.sh
 
-release: ## release APK (+ IPA on macOS)
+release: ## release AAB (+ IPA on macOS)
 	flutter pub get
 	flutter test
-	flutter build apk --release
+	flutter build appbundle --release
 	@if [ "$$(uname -s)" = "Darwin" ]; then flutter build ipa --release; \
 	else echo "Skipping IPA (macOS only)"; fi
 
-clean: ## placeholder for future cleanup targets
-	@echo "Nothing to clean."
+clean: ## flutter clean
+	flutter clean
 
 generate-catalog: ## regenerate assets/catalog/wc26_catalog.json
 	python3 tooling/generate_catalog.py

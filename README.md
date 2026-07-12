@@ -1,10 +1,12 @@
-# WC26 Album Tracker
+# WC26 Stickers
 
 Mobile app for **Panini FIFA World Cup 2026** collectors: scan album pages with the phone camera to mark need stickers, then browse and manage your collection on-device.
 
 ## Features
 
-- **Live scan** — ML Kit OCR reads team codes and slot numbers; red overlays on missing stickers; auto-save to SQLite.
+- **Live scan** — ML Kit OCR reads team codes and slot numbers; **red** overlays on need stickers (auto-save); **yellow** overlays when a slot is already owned (discrepancy only, no DB write).
+- **Start modes** — First launch (and Reset in Settings) chooses all-owned + scan missing, or all missing.
+- **Backup** — Settings exports/imports a full collection code (owned, swaps, need, parallels); legacy need-list codes still import.
 - **Home** — Album progress hero; need and swaps summaries split by **48 national teams** vs **FIFA World Cup** / **Coca-Cola** sections.
 - **Collection** — Team grid (green owned, red need, swap badges, **parallel color chips**); tap a sticker to set owned, need, swaps, or **parallel counts** (Blue / Red / Purple / Green / Black); search by team code with clear; **Need** filter.
 - **Parallel tracking** — Track Blue / Red / Purple / Green / Black parallels separately from album completion and base swaps; rarity odds and estimated sell values in stats.
@@ -89,9 +91,11 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 
 Build, test, device deploy, and scan pipeline details: **[docs/DEVELOPMENT.md](docs/DEVELOPMENT.md)**
 
+Store publish checklist: **[docs/publish-checklist.md](docs/publish-checklist.md)**
+
 
 ## License
 
-[MIT](LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/)
+[Proprietary](LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/). All rights reserved.
 
-This project licenses **source code only**. Panini, FIFA, and related album artwork and trademarks belong to their respective owners and are not covered by this license.
+Source and binaries are not open source. Panini, FIFA, and related album artwork and trademarks belong to their respective owners; this app is unaffiliated.

@@ -1,4 +1,4 @@
-import 'dart:ui';
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/album_breakdown.dart';
+import '../../core/app_info.dart';
 import '../../core/app_theme.dart';
+import '../../data/database/app_database.dart';
 import '../../data/models/sticker.dart';
 import '../collection/collection_providers.dart';
 import 'vendor_listing_sheet.dart';
@@ -23,7 +25,10 @@ class HomeScreen extends ConsumerWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final heroHeight = constraints.maxHeight * 0.42;
+        final wide = constraints.maxWidth / constraints.maxHeight > 1.35;
+        final heroHeight = wide
+            ? (constraints.maxHeight * 0.30).clamp(96.0, 132.0)
+            : constraints.maxHeight * 0.30;
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -32,10 +37,13 @@ class HomeScreen extends ConsumerWidget {
               height: heroHeight,
               width: double.infinity,
               child: statsAsync.when(
-                data: (stats) => AlbumProgressHero(stats: stats),
+                data: (stats) => AlbumProgressHero(
+                  stats: stats,
+                  compact: wide,
+                ),
                 loading: () => const Padding(
                   padding: EdgeInsets.all(AppSpacing.page),
-                  child: Center(child: CircularProgressIndicator()),
+                  child: Center(child: _HeroLoadingMark()),
                 ),
                 error: (_, __) => const SizedBox.shrink(),
               ),
@@ -49,13 +57,18 @@ class HomeScreen extends ConsumerWidget {
                     swapsAsync: swapsAsync,
                     parallelsAsync: parallelsAsync,
                     totalSwaps: stats.duplicates,
+                    ownedCount: stats.owned,
+                    totalStickers: stats.total,
                   ),
-                  loading: () => const Center(child: CircularProgressIndicator()),
+                  loading: () =>
+                      const Center(child: _HeroLoadingMark(size: 56)),
                   error: (_, __) => _HomeSummaryBody(
                     needAsync: needAsync,
                     swapsAsync: swapsAsync,
                     parallelsAsync: parallelsAsync,
                     totalSwaps: 0,
+                    ownedCount: 0,
+                    totalStickers: 0,
                   ),
                 ),
               ),
@@ -76,21 +89,25 @@ class HomeScreen extends ConsumerWidget {
   }
 }
 
-class _HomeSummaryBody extends StatelessWidget {
+class _HomeSummaryBody extends ConsumerWidget {
   const _HomeSummaryBody({
     required this.needAsync,
     required this.swapsAsync,
     required this.parallelsAsync,
     required this.totalSwaps,
+    required this.ownedCount,
+    required this.totalStickers,
   });
 
   final AsyncValue<Map<String, List<Sticker>>> needAsync;
   final AsyncValue<Map<String, List<Sticker>>> swapsAsync;
   final AsyncValue<Map<String, List<Sticker>>> parallelsAsync;
   final int totalSwaps;
+  final int ownedCount;
+  final int totalStickers;
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final need = needAsync.valueOrNull ?? const {};
     final swaps = swapsAsync.valueOrNull ?? const {};
     final parallels = parallelsAsync.valueOrNull ?? const {};
@@ -100,9 +117,9 @@ class _HomeSummaryBody extends StatelessWidget {
     final hasNeed = needBreakdown.total > 0;
     final hasSwapData = swapBreakdown.totalSwaps > 0 || totalSwaps > 0;
     final hasParallels = parallelBreakdown.totalParallels > 0;
-    final showSwapsSection = hasNeed || hasSwapData;
 
     if (!hasNeed && !hasSwapData && !hasParallels) {
+      final emptyCollection = ownedCount == 0 && totalStickers > 0;
       return ListView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.symmetric(
@@ -116,15 +133,21 @@ class _HomeSummaryBody extends StatelessWidget {
               child: Row(
                 children: [
                   Icon(
-                    Icons.document_scanner_outlined,
+                    emptyCollection
+                        ? Icons.inventory_2_outlined
+                        : Icons.check_circle_outline_rounded,
                     color: Theme.of(context).colorScheme.primary,
                   ),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Text(
-                      'Scan album pages to capture need stickers',
-                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurfaceVariant,
+                      emptyCollection
+                          ? 'Empty collection — mark stickers owned in Collection as you get them.'
+                          : 'No need list, swaps, or parallels yet.',
+                      style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                            color: Theme.of(context)
+                                .colorScheme
+                                .onSurfaceVariant,
                           ),
                     ),
                   ),
@@ -140,157 +163,339 @@ class _HomeSummaryBody extends StatelessWidget {
       physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.fromLTRB(
         AppSpacing.page,
-        0,
+        4,
         AppSpacing.page,
         AppSpacing.section,
       ),
       children: [
-        if (hasNeed) _NeedSummarySection(breakdown: needBreakdown),
-        if (hasNeed && showSwapsSection) const SizedBox(height: 20),
-        if (showSwapsSection)
-          _SwapsSummarySection(
-            breakdown: swapBreakdown,
-            totalSwaps: totalSwaps,
-            loading: swapsAsync.isLoading && swapsAsync.valueOrNull == null,
+        if (hasNeed) ...[
+          _HomeFilterRow(
+            icon: Icons.bookmark_add_rounded,
+            title: 'Need',
+            subtitle: _needSubtitle(needBreakdown),
+            accent: Theme.of(context).colorScheme.primary,
+            onOpen: () =>
+                openCollectionFilter(ref, StickerFilter.scannedMissing),
+            onCopy: () {
+              final text = formatNeedExportFromTeams(needBreakdown.allEntries);
+              Clipboard.setData(ClipboardData(text: text));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Need list copied')),
+              );
+            },
+            onShare: () => SharePlus.instance.share(
+              ShareParams(
+                text: formatNeedExportFromTeams(needBreakdown.allEntries),
+                subject: 'WC26 need list',
+              ),
+            ),
+            onCheckListings: () {
+              showVendorListingSheet(
+                context: context,
+                needStickers: needBreakdown.allEntries.expand((e) => e.value),
+              );
+            },
           ),
-        if (showSwapsSection && hasParallels) const SizedBox(height: 20),
+          if (hasSwapData || hasParallels) const SizedBox(height: 10),
+        ],
+        if (hasSwapData) ...[
+          _HomeFilterRow(
+            icon: Icons.swap_horiz_rounded,
+            title: 'Swaps',
+            subtitle: _swapsSubtitle(swapBreakdown, totalSwaps),
+            accent: AppTheme.owned,
+            loading: swapsAsync.isLoading && swapsAsync.valueOrNull == null,
+            onOpen: () => openCollectionFilter(ref, StickerFilter.duplicates),
+            onCopy: swapBreakdown.totalSwaps == 0 && totalSwaps == 0
+                ? null
+                : () {
+                    final text =
+                        formatSwapsExportFromTeams(swapBreakdown.allEntries);
+                    Clipboard.setData(ClipboardData(text: text));
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Swaps list copied')),
+                    );
+                  },
+            onShare: swapBreakdown.totalSwaps == 0 && totalSwaps == 0
+                ? null
+                : () => SharePlus.instance.share(
+                      ShareParams(
+                        text: formatSwapsExportFromTeams(
+                          swapBreakdown.allEntries,
+                        ),
+                        subject: 'WC26 swaps list',
+                      ),
+                    ),
+          ),
+          if (hasParallels) const SizedBox(height: 10),
+        ],
         if (hasParallels)
-          _ParallelsSummarySection(
-            breakdown: parallelBreakdown,
+          _HomeFilterRow(
+            icon: Icons.layers_rounded,
+            title: 'Parallels',
+            subtitle: _parallelsSubtitle(parallelBreakdown),
+            accent: Theme.of(context).colorScheme.secondary,
             loading:
                 parallelsAsync.isLoading && parallelsAsync.valueOrNull == null,
+            onOpen: () => openCollectionFilter(ref, StickerFilter.parallels),
+            onCopy: () {
+              final text =
+                  formatParallelsExportFromTeams(parallelBreakdown.allEntries);
+              Clipboard.setData(ClipboardData(text: text));
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(content: Text('Parallels list copied')),
+              );
+            },
+            onShare: () => SharePlus.instance.share(
+              ShareParams(
+                text: formatParallelsExportFromTeams(
+                  parallelBreakdown.allEntries,
+                ),
+                subject: 'WC26 parallels list',
+              ),
+            ),
           ),
       ],
+    );
+  }
+
+  String _needSubtitle(AlbumNeedBreakdown b) {
+    final parts = <String>[];
+    if (b.nationalTeamStickerCount > 0) {
+      parts.add(
+        '${b.nationalTeamStickerCount} stickers · ${b.nationalTeamGroupCount} teams',
+      );
+    }
+    if (b.fwcCount > 0) parts.add('${b.fwcCount} FWC');
+    if (b.cocaColaCount > 0) parts.add('${b.cocaColaCount} CC');
+    if (parts.isEmpty) return '${b.total} stickers';
+    return parts.join(' · ');
+  }
+
+  String _swapsSubtitle(AlbumSwapBreakdown b, int totalSwaps) {
+    final display = b.totalSwaps > 0 ? b.totalSwaps : totalSwaps;
+    if (display == 0) return 'Mark duplicates in Collection';
+    final parts = <String>['$display swaps'];
+    if (b.nationalTeamGroupCount > 0) {
+      parts.add('${b.nationalTeamGroupCount} teams');
+    }
+    if (b.fwcSwapCount > 0) parts.add('${b.fwcSwapCount} FWC');
+    if (b.cocaColaSwapCount > 0) parts.add('${b.cocaColaSwapCount} CC');
+    return parts.join(' · ');
+  }
+
+  String _parallelsSubtitle(AlbumParallelBreakdown b) {
+    final parts = <String>['${b.totalParallels} parallels'];
+    if (b.nationalTeamGroupCount > 0) {
+      parts.add('${b.nationalTeamGroupCount} teams');
+    }
+    if (b.fwcParallelCount > 0) parts.add('${b.fwcParallelCount} FWC');
+    if (b.cocaColaParallelCount > 0) {
+      parts.add('${b.cocaColaParallelCount} CC');
+    }
+    return parts.join(' · ');
+  }
+}
+
+class _HomeFilterRow extends StatelessWidget {
+  const _HomeFilterRow({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.accent,
+    required this.onOpen,
+    this.onCopy,
+    this.onShare,
+    this.onCheckListings,
+    this.loading = false,
+  });
+
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color accent;
+  final VoidCallback onOpen;
+  final VoidCallback? onCopy;
+  final VoidCallback? onShare;
+  final VoidCallback? onCheckListings;
+  final bool loading;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+
+    return Card(
+      elevation: 0,
+      color: scheme.surfaceContainerLowest,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(color: scheme.outlineVariant.withValues(alpha: 0.6)),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          if (loading) const LinearProgressIndicator(minHeight: 2),
+          InkWell(
+            onTap: onOpen,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 14, 8, 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Icon(icon, color: accent, size: 26),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          title,
+                          style:
+                              Theme.of(context).textTheme.titleLarge?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          subtitle,
+                          style:
+                              Theme.of(context).textTheme.bodyLarge?.copyWith(
+                                    color: scheme.onSurfaceVariant,
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    Icons.chevron_right_rounded,
+                    size: 28,
+                    color: scheme.onSurfaceVariant,
+                  ),
+                ],
+              ),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(8, 0, 8, 8),
+            child: Row(
+              children: [
+                if (onCheckListings != null)
+                  TextButton.icon(
+                    onPressed: onCheckListings,
+                    icon: const Icon(Icons.storefront_rounded, size: 18),
+                    label: const Text('Check listings'),
+                  ),
+                const Spacer(),
+                IconButton(
+                  tooltip: 'Copy',
+                  onPressed: onCopy,
+                  icon: const Icon(Icons.copy_rounded, size: 24),
+                ),
+                IconButton(
+                  tooltip: 'Share',
+                  onPressed: onShare,
+                  icon: const Icon(Icons.share_rounded, size: 24),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
 
 class AlbumProgressHero extends StatelessWidget {
-  const AlbumProgressHero({super.key, required this.stats});
+  const AlbumProgressHero({
+    super.key,
+    required this.stats,
+    this.compact = false,
+  });
 
   final CollectionStats stats;
 
+  /// Wide / landscape: short bar, no side strips, smaller cup.
+  final bool compact;
+
+  static const _gold = Color(0xFFE8A317);
+
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final pct = stats.total == 0 ? 0.0 : stats.owned / stats.total;
     final pctLabel = stats.percent.round();
 
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        AppSpacing.page,
-        AppSpacing.tight,
-        AppSpacing.page,
-        8,
+      padding: EdgeInsets.only(
+        top: AppSpacing.tight,
+        bottom: 8,
+        left: compact ? AppSpacing.page : 0,
+        right: compact ? AppSpacing.page : 0,
       ),
       child: LayoutBuilder(
         builder: (context, constraints) {
+          final sideW = compact
+              ? 0.0
+              : (constraints.maxHeight * 0.22).clamp(56.0, 88.0);
+          final cupW = compact
+              ? (constraints.maxHeight * 0.85).clamp(72.0, 100.0)
+              : (constraints.maxHeight * 0.42).clamp(110.0, 140.0);
+
           return SizedBox(
             height: constraints.maxHeight,
             width: constraints.maxWidth,
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(24),
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  DecoratedBox(
-                    decoration: BoxDecoration(
-                      gradient: LinearGradient(
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                        colors: [
-                          scheme.primary,
-                          Color.lerp(scheme.primary, const Color(0xFF0D2B6B), 0.55)!,
-                        ],
+              borderRadius: BorderRadius.circular(compact ? 18 : 24),
+              child: ColoredBox(
+                color: Colors.white,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (!compact)
+                      _HeroSideStrip(
+                        width: sideW,
+                        asset: 'assets/branding/panini_cover_side_left.png',
+                        fadeInnerRight: true,
+                      ),
+                    Expanded(
+                      child: Padding(
+                        padding: EdgeInsets.fromLTRB(
+                          compact ? 14 : 12,
+                          compact ? 10 : 14,
+                          4,
+                          compact ? 10 : 14,
+                        ),
+                        child: compact
+                            ? _HeroTextCompact(
+                                pctLabel: pctLabel,
+                                owned: stats.owned,
+                                total: stats.total,
+                              )
+                            : _HeroTextPortrait(
+                                pctLabel: pctLabel,
+                                owned: stats.owned,
+                                total: stats.total,
+                              ),
                       ),
                     ),
-                  ),
-                  Positioned(
-                    top: -40,
-                    right: -30,
-                    child: _DecorOrb(
-                      size: 160,
-                      color: scheme.onPrimary.withValues(alpha: 0.07),
+                    SizedBox(
+                      width: cupW,
+                      child: _HeroCup(compact: compact),
                     ),
-                  ),
-                  Positioned(
-                    bottom: -50,
-                    left: -40,
-                    child: _DecorOrb(
-                      size: 200,
-                      color: scheme.tertiary.withValues(alpha: 0.12),
-                    ),
-                  ),
-                  Positioned(
-                    left: 20,
-                    right: 20,
-                    top: constraints.maxHeight * 0.38,
-                    child: _PitchLines(color: scheme.onPrimary.withValues(alpha: 0.06)),
-                  ),
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(22, 20, 22, 18),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.stretch,
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              Icons.sports_soccer_rounded,
-                              color: scheme.onPrimary.withValues(alpha: 0.75),
-                              size: 20,
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'Album progress',
-                              style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                                    color: scheme.onPrimary.withValues(alpha: 0.88),
-                                    fontWeight: FontWeight.w600,
-                                    letterSpacing: 0.3,
-                                  ),
-                            ),
-                            const Spacer(),
-                            Text(
-                              'WC26',
-                              style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                                    color: scheme.tertiary,
-                                    fontWeight: FontWeight.w800,
-                                    letterSpacing: 1.2,
-                                  ),
-                            ),
-                          ],
-                        ),
-                        const Spacer(flex: 2),
-                        Text(
-                          '$pctLabel%',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.displayLarge?.copyWith(
-                                color: scheme.onPrimary,
-                                fontWeight: FontWeight.w800,
-                                height: 0.95,
-                                letterSpacing: -1.5,
-                              ),
-                        ),
-                        const SizedBox(height: 6),
-                        Text(
-                          '${stats.owned} of ${stats.total} stickers',
-                          textAlign: TextAlign.center,
-                          style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                                color: scheme.onPrimary.withValues(alpha: 0.82),
-                                fontWeight: FontWeight.w500,
-                              ),
-                        ),
-                        const Spacer(),
-                        _AlbumProgressBar(progress: pct, scheme: scheme),
-                        const SizedBox(height: 16),
-                        _HeroMetricsRow(
-                          need: stats.scannedMissing,
-                          swaps: stats.duplicates,
-                          scheme: scheme,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                    if (!compact)
+                      _HeroSideStrip(
+                        width: sideW,
+                        asset: 'assets/branding/panini_cover_side_right.png',
+                        fadeInnerRight: false,
+                      ),
+                  ],
+                ),
               ),
             ),
           );
@@ -300,563 +505,482 @@ class AlbumProgressHero extends StatelessWidget {
   }
 }
 
-class _DecorOrb extends StatelessWidget {
-  const _DecorOrb({required this.size, required this.color});
+class _HeroTextPortrait extends StatelessWidget {
+  const _HeroTextPortrait({
+    required this.pctLabel,
+    required this.owned,
+    required this.total,
+  });
+
+  final int pctLabel;
+  final int owned;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Row(
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(7),
+              child: ColoredBox(
+                color: const Color(0xFF1A1A1A),
+                child: Padding(
+                  padding: const EdgeInsets.all(4),
+                  child: Image.asset(
+                    'assets/branding/wc26_logo.png',
+                    width: 18,
+                    height: 18,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                AppInfo.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: const Color(0xFF3D3D3D),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 16.5,
+                      height: 1.1,
+                      letterSpacing: -0.25,
+                    ),
+              ),
+            ),
+          ],
+        ),
+        const Spacer(flex: 2),
+        Text(
+          '$pctLabel%',
+          style: Theme.of(context).textTheme.displayLarge?.copyWith(
+                color: AlbumProgressHero._gold,
+                fontWeight: FontWeight.w800,
+                height: 0.92,
+                letterSpacing: -1.4,
+              ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          '$owned of $total stickers',
+          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                color: const Color(0xFF737373),
+                fontWeight: FontWeight.w500,
+                letterSpacing: 0.1,
+              ),
+        ),
+        const Spacer(flex: 3),
+      ],
+    );
+  }
+}
+
+class _HeroTextCompact extends StatelessWidget {
+  const _HeroTextCompact({
+    required this.pctLabel,
+    required this.owned,
+    required this.total,
+  });
+
+  final int pctLabel;
+  final int owned;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        ClipRRect(
+          borderRadius: BorderRadius.circular(6),
+          child: ColoredBox(
+            color: const Color(0xFF1A1A1A),
+            child: Padding(
+              padding: const EdgeInsets.all(3.5),
+              child: Image.asset(
+                'assets/branding/wc26_logo.png',
+                width: 16,
+                height: 16,
+                fit: BoxFit.contain,
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                AppInfo.appName,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      color: const Color(0xFF3D3D3D),
+                      fontWeight: FontWeight.w700,
+                      fontSize: 14.5,
+                      height: 1.1,
+                      letterSpacing: -0.2,
+                    ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '$owned of $total stickers',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                      color: const Color(0xFF7A7A7A),
+                      fontWeight: FontWeight.w500,
+                    ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$pctLabel%',
+          style: Theme.of(context).textTheme.headlineMedium?.copyWith(
+                color: AlbumProgressHero._gold,
+                fontWeight: FontWeight.w800,
+                letterSpacing: -0.8,
+              ),
+        ),
+      ],
+    );
+  }
+}
+
+class _HeroSideStrip extends StatelessWidget {
+  const _HeroSideStrip({
+    required this.width,
+    required this.asset,
+    required this.fadeInnerRight,
+  });
+
+  final double width;
+  final String asset;
+  final bool fadeInnerRight;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      child: ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (bounds) => LinearGradient(
+          begin: Alignment.centerLeft,
+          end: Alignment.centerRight,
+          colors: fadeInnerRight
+              ? const [
+                  Colors.white,
+                  Colors.white,
+                  Color(0x00FFFFFF),
+                ]
+              : const [
+                  Color(0x00FFFFFF),
+                  Colors.white,
+                  Colors.white,
+                ],
+          stops: fadeInnerRight
+              ? const [0.0, 0.55, 1.0]
+              : const [0.0, 0.45, 1.0],
+        ).createShader(bounds),
+        child: Image.asset(
+          asset,
+          fit: BoxFit.cover,
+          alignment: fadeInnerRight ? Alignment.centerRight : Alignment.centerLeft,
+          filterQuality: FilterQuality.high,
+        ),
+      ),
+    );
+  }
+}
+
+/// Gold arc spinner with a faint cup silhouette for Home loading states.
+class _HeroLoadingMark extends StatefulWidget {
+  const _HeroLoadingMark({this.size = 48});
 
   final double size;
-  final Color color;
+
+  @override
+  State<_HeroLoadingMark> createState() => _HeroLoadingMarkState();
+}
+
+class _HeroLoadingMarkState extends State<_HeroLoadingMark>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _spin = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1100),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _spin.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    final size = widget.size;
+    return SizedBox(
       width: size,
       height: size,
-      decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      child: AnimatedBuilder(
+        animation: _spin,
+        builder: (context, child) {
+          return Stack(
+            alignment: Alignment.center,
+            children: [
+              child!,
+              Transform.rotate(
+                angle: _spin.value * math.pi * 2,
+                child: CustomPaint(
+                  size: Size.square(size),
+                  painter: const _GoldArcPainter(),
+                ),
+              ),
+            ],
+          );
+        },
+        child: Opacity(
+          opacity: 0.38,
+          child: Image.asset(
+            'assets/branding/wc26_cup.png',
+            width: size * 0.42,
+            height: size * 0.55,
+            fit: BoxFit.contain,
+            filterQuality: FilterQuality.medium,
+          ),
+        ),
+      ),
     );
   }
 }
 
-class _PitchLines extends StatelessWidget {
-  const _PitchLines({required this.color});
-
-  final Color color;
-
-  @override
-  Widget build(BuildContext context) {
-    return CustomPaint(
-      size: const Size(double.infinity, 80),
-      painter: _PitchLinesPainter(color: color),
-    );
-  }
-}
-
-class _PitchLinesPainter extends CustomPainter {
-  _PitchLinesPainter({required this.color});
-
-  final Color color;
+class _GoldArcPainter extends CustomPainter {
+  const _GoldArcPainter();
 
   @override
   void paint(Canvas canvas, Size size) {
+    final stroke = size.shortestSide * 0.08;
+    final rect = Offset.zero & size;
+    final inset = stroke * 1.1;
+    final arcRect = Rect.fromLTRB(
+      inset,
+      inset,
+      rect.width - inset,
+      rect.height - inset,
+    );
     final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.2
-      ..style = PaintingStyle.stroke;
-    final midY = size.height / 2;
-    canvas.drawLine(Offset(0, midY), Offset(size.width, midY), paint);
-    canvas.drawCircle(Offset(size.width / 2, midY), 28, paint);
-    canvas.drawLine(Offset(0, 8), Offset(0, size.height - 8), paint);
-    canvas.drawLine(
-      Offset(size.width, 8),
-      Offset(size.width, size.height - 8),
-      paint,
-    );
+      ..color = AlbumProgressHero._gold
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(arcRect, -math.pi / 2, math.pi * 1.15, false, paint);
   }
 
   @override
-  bool shouldRepaint(covariant _PitchLinesPainter oldDelegate) =>
-      oldDelegate.color != color;
+  bool shouldRepaint(covariant _GoldArcPainter oldDelegate) => false;
 }
 
-class _AlbumProgressBar extends StatelessWidget {
-  const _AlbumProgressBar({required this.progress, required this.scheme});
+/// World Cup trophy — centerpiece like the Panini album cover.
+class _HeroCup extends StatefulWidget {
+  const _HeroCup({this.compact = false});
 
-  final double progress;
-  final ColorScheme scheme;
+  final bool compact;
 
   @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(10),
-      child: SizedBox(
-        height: 12,
-        child: Stack(
-          fit: StackFit.expand,
-          children: [
-            ColoredBox(color: scheme.onPrimary.withValues(alpha: 0.14)),
-            FractionallySizedBox(
-              alignment: Alignment.centerLeft,
-              widthFactor: progress.clamp(0.0, 1.0),
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    colors: [
-                      scheme.tertiary,
-                      Color.lerp(scheme.tertiary, scheme.onPrimary, 0.35)!,
-                    ],
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: scheme.tertiary.withValues(alpha: 0.45),
-                      blurRadius: 8,
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  State<_HeroCup> createState() => _HeroCupState();
+}
+
+class _HeroCupState extends State<_HeroCup> with TickerProviderStateMixin {
+  /// Soft float + radial glow.
+  late final AnimationController _breathe = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 3200),
+  )..repeat(reverse: true);
+
+  /// Idle, then bottom→top shine + top crest flow.
+  /// Prior 7605ms cycle slowed another 30% → 9887ms.
+  late final AnimationController _shine = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 9887),
+  )..repeat();
+
+  late final Animation<double> _glow = CurvedAnimation(
+    parent: _breathe,
+    curve: Curves.easeInOut,
+  );
+
+  late final Animation<double> _lift = Tween<double>(begin: 0, end: -4).animate(
+    CurvedAnimation(parent: _breathe, curve: Curves.easeInOut),
+  );
+
+  static const _shineSweepStart = 0.78;
+
+  /// Continuous ease-out: starts quicker, progressively slows toward the crest
+  /// (no piecewise kink). Exponent ~4.7 ≈ prior top slowdown +25%.
+  static double _bandProgress(double linear) {
+    final t = linear.clamp(0.0, 1.0);
+    return 1.0 - math.pow(1.0 - t, 4.7).toDouble();
   }
-}
 
-class _HeroMetricsRow extends StatelessWidget {
-  const _HeroMetricsRow({
-    required this.need,
-    required this.swaps,
-    required this.scheme,
-  });
-
-  final int need;
-  final int swaps;
-  final ColorScheme scheme;
-
-  @override
-  Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(16),
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            color: scheme.onPrimary.withValues(alpha: 0.12),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: scheme.onPrimary.withValues(alpha: 0.18)),
-          ),
-          child: IntrinsicHeight(
-            child: Row(
-              children: [
-                Expanded(
-                  child: _HeroMetricCell(
-                    label: 'Need',
-                    value: '$need',
-                    scheme: scheme,
-                  ),
-                ),
-                VerticalDivider(
-                  width: 1,
-                  color: scheme.onPrimary.withValues(alpha: 0.2),
-                ),
-                Expanded(
-                  child: _HeroMetricCell(
-                    label: 'Swaps',
-                    value: '$swaps',
-                    scheme: scheme,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
+  /// Soft crest bloom keyed to band height (also progressive).
+  static double _topFlowStrength(double bandT) {
+    if (bandT < 0.62) return 0.0;
+    final local = ((bandT - 0.62) / 0.38).clamp(0.0, 1.0);
+    // Ease in as the band arrives, then gently settle — no hard cut.
+    if (local < 0.45) {
+      return Curves.easeOut.transform(local / 0.45);
+    }
+    return 1.0 - Curves.easeInOut.transform((local - 0.45) / 0.55) * 0.55;
   }
-}
-
-class _HeroMetricCell extends StatelessWidget {
-  const _HeroMetricCell({
-    required this.label,
-    required this.value,
-    required this.scheme,
-  });
-
-  final String label;
-  final String value;
-  final ColorScheme scheme;
 
   @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 12),
-      child: Column(
-        children: [
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: scheme.onPrimary,
-                  fontWeight: FontWeight.w800,
-                  height: 1,
-                ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            label,
-            style: Theme.of(context).textTheme.labelMedium?.copyWith(
-                  color: scheme.onPrimary.withValues(alpha: 0.78),
-                  fontWeight: FontWeight.w600,
-                ),
-          ),
-        ],
-      ),
-    );
+  void dispose() {
+    _breathe.dispose();
+    _shine.dispose();
+    super.dispose();
   }
-}
-
-class _NeedSummarySection extends StatelessWidget {
-  const _NeedSummarySection({required this.breakdown});
-
-  final AlbumNeedBreakdown breakdown;
 
   @override
   Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final exportText = formatNeedExportFromTeams(breakdown.allEntries);
+    final compact = widget.compact;
+    final cupW = compact ? 72.0 : 118.0;
+    final cupH = compact ? 96.0 : 168.0;
+    final peakAlpha = compact ? 0.55 : 0.75;
+    final bandHalf = compact ? 0.30 : 0.24;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SummarySectionHeader(
-          title: 'Need',
-          onCopy: breakdown.total == 0
-              ? null
-              : () {
-                  Clipboard.setData(ClipboardData(text: exportText));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Need list copied')),
-                  );
-                },
-          onShare: breakdown.total == 0
-              ? null
-              : () => Share.share(
-                    exportText,
-                    subject: 'WC26 need list',
-                  ),
-        ),
-        if (breakdown.total > 0) ...[
-          Padding(
-            padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-            child: OutlinedButton.icon(
-              onPressed: () {
-                final needStickers =
-                    breakdown.allEntries.expand((e) => e.value);
-                showVendorListingSheet(
-                  context: context,
-                  needStickers: needStickers,
-                );
-              },
-              icon: const Icon(Icons.storefront_rounded, size: 18),
-              label: const Text('Check listings'),
-            ),
-          ),
-        ],
-        if (breakdown.nationalTeamStickerCount > 0)
-          _SummaryStatBanner(
-            icon: Icons.groups_rounded,
-            title: 'Teams',
-            line: '${breakdown.nationalTeamStickerCount} stickers · '
-                '${breakdown.nationalTeamGroupCount} teams',
-            accent: scheme.primary,
-            surfaceTint: scheme.primaryContainer.withValues(alpha: 0.35),
-          ),
-        if (breakdown.fwcCount > 0) ...[
-          const SizedBox(height: 8),
-          _SummaryStatBanner(
-            icon: Icons.emoji_events_rounded,
-            title: 'FIFA World Cup',
-            line: '${breakdown.fwcCount} stickers',
-            accent: scheme.tertiary,
-            surfaceTint: scheme.tertiaryContainer.withValues(alpha: 0.45),
-          ),
-        ],
-        if (breakdown.cocaColaCount > 0) ...[
-          const SizedBox(height: 8),
-          _SummaryStatBanner(
-            icon: Icons.local_drink_rounded,
-            title: 'Coca-Cola',
-            line: '${breakdown.cocaColaCount} stickers',
-            accent: AppTheme.missing,
-            surfaceTint: scheme.errorContainer.withValues(alpha: 0.35),
-          ),
-        ],
-      ],
-    );
-  }
-}
+    return AnimatedBuilder(
+      animation: Listenable.merge([_breathe, _shine]),
+      builder: (context, child) {
+        final glow = 0.10 + (_glow.value * 0.06);
+        final t = _shine.value;
+        var shineT = 0.0;
+        var shineOpacity = 0.0;
+        if (t >= _shineSweepStart) {
+          shineT = (t - _shineSweepStart) / (1.0 - _shineSweepStart);
+          // Longer, softer fade at the end so the crest can settle.
+          if (shineT < 0.08) {
+            shineOpacity = shineT / 0.08;
+          } else if (shineT > 0.82) {
+            shineOpacity = (1.0 - shineT) / 0.18;
+          } else {
+            shineOpacity = 1.0;
+          }
+          if (compact) shineOpacity *= 0.85;
+        }
+        final bandT = _bandProgress(shineT);
+        final topFlow = _topFlowStrength(bandT);
 
-class _SwapsSummarySection extends StatelessWidget {
-  const _SwapsSummarySection({
-    required this.breakdown,
-    required this.totalSwaps,
-    this.loading = false,
-  });
-
-  final AlbumSwapBreakdown breakdown;
-  final int totalSwaps;
-  final bool loading;
-
-  bool get _hasCategoryBanners =>
-      breakdown.nationalTeamSwapCount > 0 ||
-      breakdown.fwcSwapCount > 0 ||
-      breakdown.cocaColaSwapCount > 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final exportText = formatSwapsExportFromTeams(breakdown.allEntries);
-    final displayTotal = breakdown.totalSwaps > 0 ? breakdown.totalSwaps : totalSwaps;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SummarySectionHeader(
-          title: 'Swaps',
-          onCopy: displayTotal == 0
-              ? null
-              : () {
-                  Clipboard.setData(ClipboardData(text: exportText));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Swaps list copied')),
-                  );
-                },
-          onShare: displayTotal == 0
-              ? null
-              : () => Share.share(
-                    exportText,
-                    subject: 'WC26 swaps list',
-                  ),
-        ),
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: LinearProgressIndicator(minHeight: 2),
-          ),
-        if (_hasCategoryBanners) ...[
-          if (breakdown.nationalTeamSwapCount > 0)
-            _SummaryStatBanner(
-              icon: Icons.groups_rounded,
-              title: 'Teams',
-              line: '${breakdown.nationalTeamSwapCount} swaps · '
-                  '${breakdown.nationalTeamGroupCount} teams',
-              accent: AppTheme.owned,
-              surfaceTint: scheme.primaryContainer.withValues(alpha: 0.28),
-            ),
-          if (breakdown.fwcSwapCount > 0) ...[
-            const SizedBox(height: 8),
-            _SummaryStatBanner(
-              icon: Icons.emoji_events_rounded,
-              title: 'FIFA World Cup',
-              line: '${breakdown.fwcSwapCount} swaps',
-              accent: scheme.tertiary,
-              surfaceTint: scheme.tertiaryContainer.withValues(alpha: 0.45),
-            ),
-          ],
-          if (breakdown.cocaColaSwapCount > 0) ...[
-            const SizedBox(height: 8),
-            _SummaryStatBanner(
-              icon: Icons.local_drink_rounded,
-              title: 'Coca-Cola',
-              line: '${breakdown.cocaColaSwapCount} swaps',
-              accent: AppTheme.missing,
-              surfaceTint: scheme.errorContainer.withValues(alpha: 0.35),
-            ),
-          ],
-        ] else
-          _SummaryStatBanner(
-            icon: Icons.swap_horiz_rounded,
-            title: displayTotal == 0 ? 'No swaps yet' : 'Total',
-            line: displayTotal == 0
-                ? 'Mark duplicates in Collection'
-                : '$displayTotal swaps',
-            accent: displayTotal == 0 ? scheme.onSurfaceVariant : AppTheme.owned,
-            surfaceTint: scheme.surfaceContainerHigh,
-          ),
-      ],
-    );
-  }
-}
-
-class _ParallelsSummarySection extends StatelessWidget {
-  const _ParallelsSummarySection({
-    required this.breakdown,
-    this.loading = false,
-  });
-
-  final AlbumParallelBreakdown breakdown;
-  final bool loading;
-
-  bool get _hasCategoryBanners =>
-      breakdown.nationalTeamParallelCount > 0 ||
-      breakdown.fwcParallelCount > 0 ||
-      breakdown.cocaColaParallelCount > 0;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final exportText = formatParallelsExportFromTeams(breakdown.allEntries);
-    final total = breakdown.totalParallels;
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        _SummarySectionHeader(
-          title: 'Parallels',
-          onCopy: total == 0
-              ? null
-              : () {
-                  Clipboard.setData(ClipboardData(text: exportText));
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Parallels list copied')),
-                  );
-                },
-          onShare: total == 0
-              ? null
-              : () => Share.share(
-                    exportText,
-                    subject: 'WC26 parallels list',
-                  ),
-        ),
-        if (loading)
-          const Padding(
-            padding: EdgeInsets.only(bottom: 8),
-            child: LinearProgressIndicator(minHeight: 2),
-          ),
-        if (_hasCategoryBanners) ...[
-          if (breakdown.nationalTeamParallelCount > 0)
-            _SummaryStatBanner(
-              icon: Icons.layers_rounded,
-              title: 'Teams',
-              line: '${breakdown.nationalTeamParallelCount} parallels · '
-                  '${breakdown.nationalTeamGroupCount} teams',
-              accent: scheme.secondary,
-              surfaceTint: scheme.secondaryContainer.withValues(alpha: 0.35),
-            ),
-          if (breakdown.fwcParallelCount > 0) ...[
-            const SizedBox(height: 8),
-            _SummaryStatBanner(
-              icon: Icons.emoji_events_rounded,
-              title: 'FIFA World Cup',
-              line: '${breakdown.fwcParallelCount} parallels',
-              accent: scheme.tertiary,
-              surfaceTint: scheme.tertiaryContainer.withValues(alpha: 0.45),
-            ),
-          ],
-          if (breakdown.cocaColaParallelCount > 0) ...[
-            const SizedBox(height: 8),
-            _SummaryStatBanner(
-              icon: Icons.local_drink_rounded,
-              title: 'Coca-Cola',
-              line: '${breakdown.cocaColaParallelCount} parallels',
-              accent: AppTheme.missing,
-              surfaceTint: scheme.errorContainer.withValues(alpha: 0.35),
-            ),
-          ],
-        ] else
-          _SummaryStatBanner(
-            icon: Icons.layers_rounded,
-            title: 'Total',
-            line: '$total parallels',
-            accent: scheme.secondary,
-            surfaceTint: scheme.secondaryContainer.withValues(alpha: 0.35),
-          ),
-      ],
-    );
-  }
-}
-
-class _SummarySectionHeader extends StatelessWidget {
-  const _SummarySectionHeader({
-    required this.title,
-    required this.onCopy,
-    required this.onShare,
-  });
-
-  final String title;
-  final VoidCallback? onCopy;
-  final VoidCallback? onShare;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-            ),
-          ),
-          FilledButton.tonalIcon(
-            onPressed: onCopy,
-            icon: const Icon(Icons.copy_rounded, size: 18),
-            label: const Text('Copy'),
-          ),
-          const SizedBox(width: 8),
-          FilledButton.tonalIcon(
-            onPressed: onShare,
-            icon: const Icon(Icons.share_rounded, size: 18),
-            label: const Text('Share'),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _SummaryStatBanner extends StatelessWidget {
-  const _SummaryStatBanner({
-    required this.icon,
-    required this.title,
-    required this.line,
-    required this.accent,
-    required this.surfaceTint,
-  });
-
-  final IconData icon;
-  final String title;
-  final String line;
-  final Color accent;
-  final Color surfaceTint;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    return Card(
-      elevation: 0,
-      color: surfaceTint,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(16),
-        side: BorderSide(color: accent.withValues(alpha: 0.25)),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-        child: Row(
-          children: [
-            Container(
-              padding: const EdgeInsets.all(10),
-              decoration: BoxDecoration(
-                color: accent.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Icon(icon, color: accent, size: 24),
-            ),
-            const SizedBox(width: 14),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+        return Align(
+          alignment: Alignment.center,
+          child: Transform.translate(
+            offset: Offset(0, compact ? _lift.value * 0.5 : _lift.value),
+            child: SizedBox(
+              width: cupW,
+              height: cupH,
+              child: Stack(
+                alignment: Alignment.center,
+                clipBehavior: Clip.none,
                 children: [
-                  Text(
-                    title,
-                    style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                          fontWeight: FontWeight.w700,
-                          color: scheme.onSurface,
-                        ),
+                  DecoratedBox(
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      gradient: RadialGradient(
+                        colors: [
+                          AlbumProgressHero._gold.withValues(alpha: glow),
+                          Colors.transparent,
+                        ],
+                      ),
+                    ),
+                    child: SizedBox(
+                      width: compact ? 70 : 100,
+                      height: compact ? 70 : 100,
+                    ),
                   ),
-                  const SizedBox(height: 2),
-                  Text(
-                    line,
-                    style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                          color: scheme.onSurfaceVariant,
-                          fontWeight: FontWeight.w600,
+                  child!,
+                  if (shineOpacity > 0.01)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: shineOpacity,
+                          child: ShaderMask(
+                            blendMode: BlendMode.srcIn,
+                            shaderCallback: (bounds) {
+                              // Band travels bottom → top with continuous deceleration.
+                              final centerY = 1.35 - bandT * 2.7;
+                              return LinearGradient(
+                                begin: Alignment(-0.15, centerY - bandHalf),
+                                end: Alignment(0.15, centerY + bandHalf),
+                                colors: [
+                                  Colors.transparent,
+                                  Colors.white.withValues(alpha: peakAlpha * 0.4),
+                                  Colors.white.withValues(alpha: peakAlpha),
+                                  AlbumProgressHero._gold
+                                      .withValues(alpha: peakAlpha * 0.6),
+                                  Colors.white.withValues(alpha: peakAlpha * 0.4),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.22, 0.45, 0.55, 0.78, 1.0],
+                              ).createShader(bounds);
+                            },
+                            child: Image.asset(
+                              'assets/branding/wc26_cup.png',
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.medium,
+                            ),
+                          ),
                         ),
-                  ),
+                      ),
+                    ),
+                  if (topFlow > 0.01 && shineOpacity > 0.01)
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Opacity(
+                          opacity: (topFlow * shineOpacity).clamp(0.0, 1.0),
+                          child: ShaderMask(
+                            blendMode: BlendMode.srcIn,
+                            shaderCallback: (bounds) {
+                              return RadialGradient(
+                                center: const Alignment(0, -0.88),
+                                radius: 0.42 + topFlow * 0.28,
+                                colors: [
+                                  Colors.white.withValues(alpha: peakAlpha),
+                                  AlbumProgressHero._gold
+                                      .withValues(alpha: peakAlpha * 0.75),
+                                  AlbumProgressHero._gold
+                                      .withValues(alpha: peakAlpha * 0.2),
+                                  Colors.transparent,
+                                ],
+                                stops: const [0.0, 0.28, 0.55, 1.0],
+                              ).createShader(bounds);
+                            },
+                            child: Image.asset(
+                              'assets/branding/wc26_cup.png',
+                              fit: BoxFit.contain,
+                              filterQuality: FilterQuality.medium,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                 ],
               ),
             ),
-          ],
-        ),
+          ),
+        );
+      },
+      child: Image.asset(
+        'assets/branding/wc26_cup.png',
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        isAntiAlias: true,
       ),
     );
   }

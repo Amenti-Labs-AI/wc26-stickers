@@ -1,23 +1,53 @@
+import 'ocr_overlay_builder.dart';
 import 'slot_overlay_painter.dart';
 
 /// Keeps overlays stable across noisy live OCR frames.
 class LiveOverlayTracker {
   LiveOverlayTracker({
-    this.holdDuration = const Duration(milliseconds: 2800),
+    /// How long to keep overlays when OCR returns nothing (camera between pages).
+    this.emptyHoldDuration = const Duration(milliseconds: 1600),
+    /// How long a code may stay after vanishing from a non-empty frame.
+    /// Must cover several OCR misses (~450ms scan interval).
+    this.missGraceDuration = const Duration(milliseconds: 2200),
     this.minFramesToAdd = 2,
     this.positionBlend = 0.4,
   });
 
-  final Duration holdDuration;
+  final Duration emptyHoldDuration;
+  final Duration missGraceDuration;
   final int minFramesToAdd;
   final double positionBlend;
 
   final Map<String, _TrackedOverlay> _tracked = {};
 
+  Set<String> get _stableCodes => {
+        for (final entry in _tracked.entries)
+          if (entry.value.stable || entry.value.hits >= minFramesToAdd)
+            entry.key,
+      };
+
+  /// True when a confident new page is in view (no code overlap with held set).
+  ///
+  /// Requires at least two incoming detections so a single OCR misread cannot
+  /// wipe a stable multi-slot page.
+  bool isPageChange(List<MissingSlotOverlay> detected) {
+    if (detected.length < 2) return false;
+    final held = _stableCodes;
+    if (held.isEmpty) return false;
+    final incoming = {for (final o in detected) o.code};
+    return held.intersection(incoming).isEmpty;
+  }
+
   List<MissingSlotOverlay> update(List<MissingSlotOverlay> detected) {
     final now = DateTime.now();
+    // Dedupe by code only for intake — spatial IoU must not drop neighbor slots.
+    final uniqueDetected = OcrOverlayBuilder.uniqueByCode(detected);
 
-    for (final overlay in detected) {
+    if (isPageChange(uniqueDetected)) {
+      clear();
+    }
+
+    for (final overlay in uniqueDetected) {
       final existing = _tracked[overlay.code];
       if (existing == null) {
         _tracked[overlay.code] = _TrackedOverlay(
@@ -36,23 +66,16 @@ class LiveOverlayTracker {
       }
     }
 
-    _tracked.removeWhere(
-      (_, track) => now.difference(track.lastSeen) > holdDuration,
-    );
+    final hold = uniqueDetected.isEmpty ? emptyHoldDuration : missGraceDuration;
+    _tracked.removeWhere((_, track) => now.difference(track.lastSeen) > hold);
 
-    final visible = <MissingSlotOverlay>[];
-    for (final track in _tracked.values) {
-      if (track.stable || track.hits >= minFramesToAdd) {
-        visible.add(track.overlay);
-      }
-    }
+    final visible = <MissingSlotOverlay>[
+      for (final track in _tracked.values)
+        if (track.stable || track.hits >= minFramesToAdd) track.overlay,
+    ];
 
-    visible.sort((a, b) {
-      final y = a.y.compareTo(b.y);
-      if (y != 0) return y;
-      return a.x.compareTo(b.x);
-    });
-    return visible;
+    // Never spatial-cull held overlays — neighboring stickers often overlap IoU.
+    return OcrOverlayBuilder.uniqueByCode(visible);
   }
 
   void clear() => _tracked.clear();

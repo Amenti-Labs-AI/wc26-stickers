@@ -5,7 +5,16 @@ import 'package:flutter/material.dart';
 import '../../ml/portrait_slot_from_read.dart';
 import 'camera_preview_mapper.dart';
 
-enum SlotOverlayState { scanning, confirmed }
+enum SlotOverlayState {
+  /// Transient amber dashed box while a slot is still stabilizing.
+  scanning,
+
+  /// Confirmed need (empty slot) — red.
+  confirmed,
+
+  /// Detected on page but already owned in the collection — yellow; no DB write.
+  alreadyOwned,
+}
 
 /// A missing (empty) sticker slot to draw on the live camera overlay.
 class MissingSlotOverlay {
@@ -39,6 +48,38 @@ class MissingSlotOverlay {
   final double? readH;
   /// When set, label shows team code on top and [slotNumber] below (portrait readout).
   final String? scannedTeamCode;
+
+  MissingSlotOverlay copyWith({
+    String? code,
+    String? displayName,
+    int? slotNumber,
+    double? x,
+    double? y,
+    double? w,
+    double? h,
+    SlotOverlayState? state,
+    double? readX,
+    double? readY,
+    double? readW,
+    double? readH,
+    String? scannedTeamCode,
+  }) {
+    return MissingSlotOverlay(
+      code: code ?? this.code,
+      displayName: displayName ?? this.displayName,
+      slotNumber: slotNumber ?? this.slotNumber,
+      x: x ?? this.x,
+      y: y ?? this.y,
+      w: w ?? this.w,
+      h: h ?? this.h,
+      state: state ?? this.state,
+      readX: readX ?? this.readX,
+      readY: readY ?? this.readY,
+      readW: readW ?? this.readW,
+      readH: readH ?? this.readH,
+      scannedTeamCode: scannedTeamCode ?? this.scannedTeamCode,
+    );
+  }
 
   Rect rectForCanvas(Size canvasSize, {Size? imageSize, BoxFit fit = BoxFit.cover}) {
     if (imageSize == null) {
@@ -131,33 +172,44 @@ class MissingSlotOverlayPainter extends CustomPainter {
       if (rect.width < 4 || rect.height < 4) continue;
 
       if (slot.state == SlotOverlayState.scanning) {
-        _paintScanning(canvas, rect, slot, size);
+        _paintScanning(canvas, rect, slot);
+      } else if (slot.state == SlotOverlayState.alreadyOwned) {
+        _paintAlreadyOwned(canvas, rect, slot);
       } else {
         _paintConfirmed(canvas, rect, slot);
       }
     }
   }
 
-  void _paintScanning(Canvas canvas, Rect rect, MissingSlotOverlay slot, Size size) {
+  void _paintScanning(Canvas canvas, Rect rect, MissingSlotOverlay slot) {
     final radius = Radius.circular(
       (math.min(rect.width, rect.height) * 0.08).clamp(3.0, 10.0),
     );
 
     final fill = Paint()
-      ..color = const Color(0x40FFB300)
+      ..color = const Color(0x8CFFB300)
       ..style = PaintingStyle.fill;
     canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), fill);
 
     _paintDashedBorder(canvas, rect, radius, const Color(0xFFFFB300), 2);
+    _drawPortraitLabel(canvas, slot.labelBandRect(rect), slot, scanning: true);
+  }
 
-    final readRect = slot.readRectForCanvas(size, imageSize: imageSize, fit: fit);
-    if (readRect != null && readRect.width >= 4 && readRect.height >= 4) {
-      final readFill = Paint()
-        ..color = const Color(0x55FFB300)
-        ..style = PaintingStyle.fill;
-      canvas.drawRect(readRect, readFill);
-    }
+  void _paintAlreadyOwned(Canvas canvas, Rect rect, MissingSlotOverlay slot) {
+    final radius = Radius.circular(
+      (math.min(rect.width, rect.height) * 0.08).clamp(3.0, 10.0),
+    );
 
+    final fill = Paint()
+      ..color = const Color(0x8CFFC107)
+      ..style = PaintingStyle.fill;
+    final border = Paint()
+      ..color = const Color(0xFFFFD54F)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2;
+
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), fill);
+    canvas.drawRRect(RRect.fromRectAndRadius(rect, radius), border);
     _drawPortraitLabel(canvas, slot.labelBandRect(rect), slot, scanning: true);
   }
 
@@ -229,7 +281,7 @@ class MissingSlotOverlayPainter extends CustomPainter {
     final team = slot.scannedTeamCode ?? _teamFromCode(slot.code);
     if (team.isEmpty || team == '…') return;
     final number = slot.slotNumber > 0 ? '${slot.slotNumber}' : '?';
-    final color = scanning ? const Color(0xFFFFF8E1) : Colors.white;
+    const color = Color(0xFFFFFFFF);
 
     final teamPainter = TextPainter(
       text: TextSpan(
@@ -239,7 +291,6 @@ class MissingSlotOverlayPainter extends CustomPainter {
           fontSize: scanning ? 13 : 15,
           fontWeight: FontWeight.bold,
           letterSpacing: 0.5,
-          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -253,7 +304,6 @@ class MissingSlotOverlayPainter extends CustomPainter {
           color: color,
           fontSize: scanning ? 16 : 20,
           fontWeight: FontWeight.w800,
-          shadows: const [Shadow(color: Colors.black, blurRadius: 4)],
         ),
       ),
       textDirection: TextDirection.ltr,
@@ -271,10 +321,9 @@ class MissingSlotOverlayPainter extends CustomPainter {
         text: TextSpan(
           text: name.length > 18 ? '${name.substring(0, 16)}…' : name,
           style: const TextStyle(
-            color: Color(0xFFFFF9C4),
+            color: color,
             fontSize: 8,
             fontWeight: FontWeight.w600,
-            shadows: [Shadow(color: Colors.black, blurRadius: 3)],
           ),
         ),
         textDirection: TextDirection.ltr,

@@ -1,6 +1,6 @@
 # Pixel 4a — stock Android device testing
 
-Install **WC26 Album Tracker** on a **Pixel 4a** running stock **Android**, build an APK on your Mac, and test live camera scan.
+Install **WC26 Stickers** on a **Pixel 4a** running stock **Android**, build an APK on your Mac, and test live camera scan.
 
 ## Setup
 
@@ -22,14 +22,14 @@ Use a **debug APK** when restoring collection data: `make android-push-db` requi
 
 ```bash
 make android-install     # install debug APK first
-make android-push-db     # push data/device/panini_wc26.db → device
+make android-push-db     # push data/device/wc26_stickers.db → device
 ```
 
 ## Camera permission
 
-If preview is black: **Settings → Apps → WC26 Album Tracker → Permissions → Camera → Allow**.
+If preview is black: **Settings → Apps → WC26 Stickers → Permissions → Camera → Allow**.
 
-Package name: **`com.amentilabs.panini_wc26_tracker`**
+Package name: **`com.amentilabs.wc26stickers`**
 
 Live scan uses **portrait-label OCR** only — see [ml/strategy.md](../ml/strategy.md).
 

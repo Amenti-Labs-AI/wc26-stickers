@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Pull panini_wc26.db from a connected debug Android device → data/device/
+# Pull wc26_stickers.db from a connected debug Android device → data/device/
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -7,9 +7,9 @@ cd "$ROOT"
 # shellcheck source=env.sh
 source "$ROOT/android/scripts/env.sh"
 
-PKG="com.amentilabs.panini_wc26_tracker"
-DB="databases/panini_wc26.db"
-OUT="$ROOT/data/device/panini_wc26.db"
+PKG="com.amentilabs.wc26stickers"
+DB="databases/wc26_stickers.db"
+OUT="$ROOT/data/device/wc26_stickers.db"
 
 DEVICE="$(adb devices 2>/dev/null | awk '/\tdevice$/{print $1; exit}')"
 if [[ -z "$DEVICE" ]]; then

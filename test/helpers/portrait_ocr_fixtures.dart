@@ -1,3 +1,6 @@
+import 'dart:io';
+import 'dart:typed_data';
+
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
@@ -7,6 +10,9 @@ import 'package:panini_wc26_tracker/ml/page_scan_service.dart';
 import 'package:panini_wc26_tracker/ml/ocr_text_line.dart';
 import 'package:panini_wc26_tracker/ml/portrait_ocr_scanner.dart';
 import 'package:panini_wc26_tracker/ml/template_ocr.dart';
+
+// Fixtures live on disk under assets/test_fixtures/ but are NOT declared in
+// pubspec (so they are not shipped in store builds). Host tests load via File.
 
 // MEX
 const mexPage8Asset = 'assets/test_fixtures/mex_page_8.jpg';
@@ -51,6 +57,29 @@ const _fwcZoomCrops = <String, ({double x, double y, double w, double h})>{
   'FWC4': (x: 0.04, y: 0.24, w: 0.28, h: 0.14),
 };
 
+Future<Uint8List> loadFixtureBytes(String relativePath) async {
+  final file = File(relativePath);
+  if (await file.exists()) {
+    return file.readAsBytes();
+  }
+  try {
+    final data = await rootBundle.load(relativePath);
+    return data.buffer.asUint8List();
+  } catch (_) {
+    throw TestFailure(
+      'missing OCR fixture $relativePath '
+      '(host tests load from disk; not shipped in the app binary)',
+    );
+  }
+}
+
+Future<img.Image> decodeFixture(String relativePath) async {
+  final bytes = await loadFixtureBytes(relativePath);
+  final decoded = img.decodeImage(bytes);
+  expect(decoded, isNotNull, reason: 'decode $relativePath');
+  return decoded!;
+}
+
 Future<ScanPageSession> createOcrSession() async {
   final service = PageScanService();
   final session = ScanPageSession(service);
@@ -72,9 +101,7 @@ Future<img.Image> loadTrainPage(int page) => loadTrainHalfPage(page);
 Future<img.Image> loadTrainHalfPage(int page) async {
   for (final asset in _assetCandidatesForPage(page)) {
     try {
-      final data = await rootBundle.load(asset);
-      final decoded = img.decodeImage(data.buffer.asUint8List());
-      if (decoded != null) return decoded;
+      return await decodeFixture(asset);
     } catch (_) {}
   }
   throw TestFailure('missing test fixture for page $page');
@@ -91,20 +118,12 @@ Future<img.Image> loadMexHalfPage(int page) async {
     return loadTrainHalfPage(page);
   }
   final asset = page == 8 ? mexPage8Asset : mexPage9Asset;
-  final data = await rootBundle.load(asset);
-  final decoded = img.decodeImage(data.buffer.asUint8List());
-  expect(decoded, isNotNull, reason: 'decode $asset');
-  return decoded!;
+  return decodeFixture(asset);
 }
 
 Future<img.Image> loadFwcPage1() => loadTrainHalfPage(1);
 
-Future<img.Image> loadFwc4ZoomCrop() async {
-  final data = await rootBundle.load(fwc4ZoomAsset);
-  final decoded = img.decodeImage(data.buffer.asUint8List());
-  expect(decoded, isNotNull, reason: 'decode $fwc4ZoomAsset');
-  return decoded!;
-}
+Future<img.Image> loadFwc4ZoomCrop() => decodeFixture(fwc4ZoomAsset);
 
 img.Image cropForSlot(img.Image page, String code) {
   final region = _mexZoomCrops[code] ??

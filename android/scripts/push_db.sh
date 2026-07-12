@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Push data/device/panini_wc26.db → connected debug Android device (overwrites device DB).
+# Push data/device/wc26_stickers.db → connected debug Android device (overwrites device DB).
 set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
@@ -7,9 +7,9 @@ cd "$ROOT"
 # shellcheck source=env.sh
 source "$ROOT/android/scripts/env.sh"
 
-PKG="com.amentilabs.panini_wc26_tracker"
-DB="databases/panini_wc26.db"
-SRC="$ROOT/data/device/panini_wc26.db"
+PKG="com.amentilabs.wc26stickers"
+DB="databases/wc26_stickers.db"
+SRC="$ROOT/data/device/wc26_stickers.db"
 
 if [[ ! -f "$SRC" ]]; then
   echo "No local DB at $SRC — run make android-pull-db first or copy a file there." >&2

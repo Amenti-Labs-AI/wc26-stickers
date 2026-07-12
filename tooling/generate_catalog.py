@@ -132,17 +132,45 @@ def parse_cc_table(text: str) -> list[dict]:
 
 
 def assign_album_pages(catalog: list[dict]) -> None:
-    page = 1
-    current_group = None
+    """Assign printed Panini album page numbers.
+
+    FWC occupies pages 1–2. Pages 3–7 are non-sticker album content.
+    Each national team is a two-page spread starting at page 8 (MEX 8–9,
+    QAT 20–21, …). Coca-Cola stickers have no album page.
+
+    Extra non-team spreads are inserted before some teams (e.g. pages 56–57
+    before Group G / Belgium).
+    """
+    # Printed pages with no national-team stickers, inserted before a team.
+    page_gaps_before_team = {
+        "BEL": 2,  # pages 56–57 between Group F and Group G
+    }
+
+    # FWC intro spread
     for entry in catalog:
-        g = entry["group"]
-        if g != current_group and g.startswith("Group"):
-            current_group = g
-        if entry["team_code"] in ("FWC", "CC"):
+        if entry["team_code"] != "FWC":
             continue
-        if entry["slot_number"] == 1:
-            page += 1
-        entry["album_page"] = page
+        slot = int(entry["slot_number"])
+        entry["album_page"] = 1 if slot < 10 else 2
+        entry["slot_index_on_page"] = slot if slot < 10 else slot - 10
+
+    # National-team spreads (printed pages)
+    first_national_page = 8
+    team_start_page: dict[str, int] = {}
+    next_page = first_national_page
+    for entry in catalog:
+        team = entry["team_code"]
+        if team in ("FWC", "CC"):
+            continue
+        if team not in team_start_page:
+            next_page += page_gaps_before_team.get(team, 0)
+            team_start_page[team] = next_page
+            next_page += 2
+        start = team_start_page[team]
+        slot = int(entry["slot_number"])
+        on_first_half = slot <= 10
+        entry["album_page"] = start if on_first_half else start + 1
+        entry["slot_index_on_page"] = (slot - 1) if on_first_half else (slot - 11)
 
 
 def main() -> None:
@@ -193,7 +221,7 @@ def main() -> None:
     catalog = unique
 
     out = {
-        "version": "1.0.0",
+        "version": "1.1.1",
         "edition": "global",
         "total_stickers": len(catalog),
         "stickers": catalog,

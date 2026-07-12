@@ -22,4 +22,4 @@ fi
 
 echo "Installing $APK ..."
 adb install -r "$APK"
-echo "Done. Open WC26 Album Tracker on the phone."
+echo "Done. Open WC26 Stickers on the phone."

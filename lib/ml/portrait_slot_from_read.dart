@@ -10,6 +10,9 @@ bool isFwcLandscapeFoilSlot(String teamCode, int slotNumber) =>
     teamCode.toUpperCase() == 'FWC' && slotNumber >= 3 && slotNumber <= 8;
 
 /// Whether OCR label geometry should expand into a landscape sticker well.
+///
+/// Only known landscape slots — do not infer from OCR aspect, or wide
+/// team+number merges stretch player overlays into long banners.
 bool isLandscapeOcrSlot({
   required int slotNumber,
   required String teamCode,
@@ -18,8 +21,6 @@ bool isLandscapeOcrSlot({
 }) {
   if (isTeamPhotoSlot(slotNumber)) return true;
   if (isFwcLandscapeFoilSlot(teamCode, slotNumber)) return true;
-  // Side-by-side team+number reads span a wide label cluster.
-  if (readW >= 0.10 && readH > 0.004 && readW / readH >= 1.8) return true;
   return false;
 }
 
@@ -27,6 +28,9 @@ bool isLandscapeOcrSlot({
 const ocrLabelWidthShare = 0.46;
 const ocrLabelHeightShare = 0.22;
 const ocrLabelTopInset = 0.18;
+
+/// Fixed portrait sticker aspect (width / height) so live overlays look uniform.
+const portraitSlotAspect = 0.108 / 0.158;
 
 /// Team-photo banner (slot 13): label sits top-left; bar extends right.
 const ocrLandscapeLabelWidthShare = 0.22;
@@ -130,8 +134,10 @@ TemplateSlot _portraitPlayerSlotFromReadRect({
 
   final wFromLabel = safeW / ocrLabelWidthShare;
   final hFromLabel = safeH / ocrLabelHeightShare;
-  final w = wFromLabel.clamp(0.08, maxPortraitSlotWidth);
-  final h = hFromLabel.clamp(0.10, maxPortraitSlotHeight);
+  // Average the two OCR-derived sizes, then lock aspect — don't shrink to min.
+  final h = ((hFromLabel + wFromLabel / portraitSlotAspect) / 2)
+      .clamp(0.12, maxPortraitSlotHeight);
+  final w = (h * portraitSlotAspect).clamp(0.09, maxPortraitSlotWidth);
   final cx = readX + safeW / 2;
 
   var top = readY - h * ocrLabelTopInset;

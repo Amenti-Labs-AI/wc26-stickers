@@ -11,6 +11,8 @@ import '../../core/camera_unavailable_screen.dart';
 import '../../core/mobile_only_screen.dart';
 import '../../core/platform.dart';
 import '../../core/app_widgets.dart';
+import '../../core/scan_wakelock.dart';
+import '../../data/database/app_database.dart';
 import '../../ml/missing_scan_filter.dart';
 import '../../ml/page_scan_service.dart';
 import '../collection/collection_providers.dart';
@@ -48,6 +50,10 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
   DateTime? _lastScanStartedAt;
   CameraFramePayload? _pendingPayload;
   Set<String> _lastSavedCodes = const {};
+  /// Codes already persisted/haptic'd this Scan session (survives page turns).
+  Set<String> _sessionSavedCodes = {};
+  /// Owned sticker codes that are not Need — yellow discrepancy overlay only.
+  Set<String> _ownedNotNeedCodes = {};
 
   /// Idle throttle between scans; backlog drains immediately after each OCR.
   static const _scanInterval = Duration(milliseconds: 450);
@@ -58,6 +64,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
     super.initState();
     unawaited(_prepareSession());
     if (widget.active) {
+      unawaited(_setScanWakelock(true));
       unawaited(_startCamera());
     }
   }
@@ -67,15 +74,23 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
     super.didUpdateWidget(oldWidget);
     if (widget.active == oldWidget.active) return;
     if (widget.active) {
+      unawaited(_setScanWakelock(true));
+      unawaited(_refreshOwnedCodes());
       unawaited(_startCamera());
     } else {
       _session?.resetTeamLock();
       _overlayTracker.clear();
       _lastSavedCodes = const {};
+      _sessionSavedCodes = {};
       _pendingPayload = null;
       _scanInFlight = false;
+      unawaited(_setScanWakelock(false));
       unawaited(_stopCamera());
     }
+  }
+
+  Future<void> _setScanWakelock(bool on) async {
+    await ScanWakelock.toggle(enable: on);
   }
 
   Future<void> _prepareSession() async {
@@ -95,6 +110,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
     final session = ScanPageSession(_scanService);
     await session.ensureReady();
     _session = session;
+    await _refreshOwnedCodes();
 
     if (!mounted) return;
     setState(() {
@@ -107,6 +123,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
 
   Future<void> _startCamera() async {
     if (!isMobileScanSupported) return;
+    await _setScanWakelock(true);
     if (_controller?.value.isInitialized ?? false) {
       await _ensureStream();
       return;
@@ -129,6 +146,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
   }
 
   Future<void> _stopCamera() async {
+    await _setScanWakelock(false);
     final controller = _controller;
     _controller = null;
     _camera = null;
@@ -221,12 +239,10 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
       if (result.teamSwitched) {
         _overlayTracker.clear();
         _lastSavedCodes = const {};
+        if (mounted) {
+          setState(() => _overlays = const []);
+        }
       }
-
-      final codes = result.missingCodes.toList()..sort();
-      final status = codes.isEmpty
-          ? 'Scanning for need stickers…'
-          : '${codes.length} need · ${codes.join(' ')}';
 
       final analysisSize = result.analysisWidth > 0 && result.analysisHeight > 0
           ? Size(
@@ -249,8 +265,30 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
         );
       }
 
-      final stableOverlays = _overlayTracker.update(overlays);
+      // Same-team page turn: held overlays share no codes with this frame.
+      // Do not blank the UI here — tracker.update replaces held set atomically.
+      if (_overlayTracker.isPageChange(overlays)) {
+        _lastSavedCodes = const {};
+      }
+
+      final stableOverlays = _markOwnedOverlays(_overlayTracker.update(overlays));
       unawaited(_persistStableMissing(stableOverlays));
+
+      final needCount = stableOverlays
+          .where((o) => o.state != SlotOverlayState.alreadyOwned)
+          .length;
+      final ownedHitCount = stableOverlays.length - needCount;
+      final needCodes = stableOverlays
+          .where((o) => o.state != SlotOverlayState.alreadyOwned)
+          .map((o) => o.code)
+          .toList()
+        ..sort();
+      final status = stableOverlays.isEmpty
+          ? 'Scanning for need stickers…'
+          : [
+              if (needCount > 0) '$needCount need · ${needCodes.join(' ')}',
+              if (ownedHitCount > 0) '$ownedHitCount owned (check manually)',
+            ].join(' · ');
 
       if (status == _status &&
           result.debug == _debug &&
@@ -279,20 +317,47 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
     }
   }
 
+  Future<void> _refreshOwnedCodes() async {
+    _ownedNotNeedCodes = await AppDatabase.instance.getOwnedNotNeedCodes();
+  }
+
+  List<MissingSlotOverlay> _markOwnedOverlays(
+    List<MissingSlotOverlay> overlays,
+  ) {
+    if (overlays.isEmpty || _ownedNotNeedCodes.isEmpty) return overlays;
+    return [
+      for (final overlay in overlays)
+        _ownedNotNeedCodes.contains(overlay.code.toUpperCase())
+            ? overlay.copyWith(state: SlotOverlayState.alreadyOwned)
+            : overlay.state == SlotOverlayState.alreadyOwned
+                ? overlay.copyWith(state: SlotOverlayState.confirmed)
+                : overlay,
+    ];
+  }
+
   Future<void> _persistStableMissing(
     List<MissingSlotOverlay> overlays, {
     List<String>? codes,
   }) async {
-    final resolved =
-        codes ?? confirmedMissingStickerCodes(overlays.map((o) => o.code));
+    final resolved = codes ??
+        confirmedMissingStickerCodes(
+          overlays
+              .where((o) => o.state != SlotOverlayState.alreadyOwned)
+              .map((o) => o.code),
+        );
     if (resolved.isEmpty) return;
 
     final codeSet = resolved.toSet();
-    if (setEquals(codeSet, _lastSavedCodes)) return;
+    final added = codeSet.difference(_sessionSavedCodes);
+    if (added.isEmpty && setEquals(codeSet, _lastSavedCodes)) return;
 
-    final added = codeSet.difference(_lastSavedCodes);
     _lastSavedCodes = codeSet;
+    _sessionSavedCodes = {..._sessionSavedCodes, ...codeSet};
     await _saveMissingCodes(resolved, haptic: added.isNotEmpty);
+    // Newly saved needs are no longer "owned not need" discrepancy targets.
+    if (added.isNotEmpty) {
+      _ownedNotNeedCodes = _ownedNotNeedCodes.difference(added);
+    }
   }
 
   Future<void> _saveMissingCodes(
@@ -322,6 +387,7 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
       final left = a[i];
       final right = b[i];
       if (left.code != right.code) return false;
+      if (left.state != right.state) return false;
       if ((left.x - right.x).abs() > 0.01) return false;
       if ((left.y - right.y).abs() > 0.01) return false;
     }
@@ -332,8 +398,10 @@ class _ScanPageScreenState extends ConsumerState<ScanPageScreen> {
   void dispose() {
     _overlayTracker.clear();
     _lastSavedCodes = const {};
+    _sessionSavedCodes = {};
     _pendingPayload = null;
     _scanInFlight = false;
+    unawaited(_setScanWakelock(false));
     unawaited(_stopCamera());
     _session?.close();
     _scanService.dispose();
