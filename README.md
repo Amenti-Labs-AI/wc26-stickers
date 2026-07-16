@@ -45,45 +45,42 @@ Portrait-label OCR was chosen over generic empty-box detection because WC26 layo
 <table>
 <tr>
 <td align="center" width="33%">
-<a href="docs/screenshots/bra-scan-1.png"><img src="docs/screenshots/bra-scan-1.png" width="200" alt="Live scan — Brazil"/></a><br/>
-<sub>Scan BRA</sub>
-</td>
-<td align="center" width="33%">
-<a href="docs/screenshots/sui-scan-2.png"><img src="docs/screenshots/sui-scan-2.png" width="200" alt="Live scan — Switzerland"/></a><br/>
-<sub>Scan SUI</sub>
-</td>
-<td align="center" width="33%">
 <a href="docs/screenshots/home.png"><img src="docs/screenshots/home.png" width="200" alt="Home"/></a><br/>
 <sub>Home</sub>
 </td>
+<td align="center" width="33%">
+<a href="docs/screenshots/collection-team.png"><img src="docs/screenshots/collection-team.png" width="200" alt="Collection team grid"/></a><br/>
+<sub>Collection</sub>
+</td>
+<td align="center" width="33%">
+<a href="docs/screenshots/collection-edit.png"><img src="docs/screenshots/collection-edit.png" width="200" alt="Sticker edit sheet"/></a><br/>
+<sub>Card edit</sub>
+</td>
 </tr>
 <tr>
-<td align="center">
-<a href="docs/screenshots/collection-team.png"><img src="docs/screenshots/collection-team.png" width="200" alt="Collection team grid with parallel chips"/></a><br/>
-<sub>Collection + parallels</sub>
-</td>
 <td align="center">
 <a href="docs/screenshots/collection-need.png"><img src="docs/screenshots/collection-need.png" width="200" alt="Collection need filter"/></a><br/>
-<sub>Collection - Need</sub>
+<sub>Need</sub>
 </td>
 <td align="center">
-<a href="docs/screenshots/collection-edit.png"><img src="docs/screenshots/collection-edit.png" width="200" alt="Sticker edit sheet"/></a><br/>
-<sub>Card Edit</sub>
+<a href="docs/screenshots/collection-swaps.png"><img src="docs/screenshots/collection-swaps.png" width="200" alt="Collection swaps filter"/></a><br/>
+<sub>Swaps</sub>
+</td>
+<td align="center">
+<a href="docs/screenshots/collection-parallels.png"><img src="docs/screenshots/collection-parallels.png" width="200" alt="Collection parallels filter"/></a><br/>
+<sub>Parallels</sub>
 </td>
 </tr>
 <tr>
 <td align="center">
-<a href="docs/screenshots/collection-stats-overview.png"><img src="docs/screenshots/collection-stats-overview.png" width="200" alt="Stats overview"/></a><br/>
-<sub>Stats - Overview</sub>
+<a href="docs/screenshots/bra-scan-1.png"><img src="docs/screenshots/bra-scan-1.png" width="200" alt="Live scan — Brazil"/></a><br/>
+<sub>Scan BRA</sub>
 </td>
 <td align="center">
-<a href="docs/screenshots/collection-stats-complete.png"><img src="docs/screenshots/collection-stats-complete.png" width="200" alt="Stats complete"/></a><br/>
-<sub>Stats - Complete</sub>
+<a href="docs/screenshots/sui-scan-2.png"><img src="docs/screenshots/sui-scan-2.png" width="200" alt="Live scan — Switzerland"/></a><br/>
+<sub>Scan SUI</sub>
 </td>
-<td align="center">
-<a href="docs/screenshots/collection-stats-parallels.png"><img src="docs/screenshots/collection-stats-parallels.png" width="200" alt="Stats parallels"/></a><br/>
-<sub>Stats - Parallels</sub>
-</td>
+<td></td>
 </tr>
 </table>
 
