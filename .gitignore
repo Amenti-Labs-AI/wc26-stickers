@@ -65,6 +65,9 @@ app.*.map.json
 # Device DB snapshots (personal collection data)
 /data/device/
 
+# Raw device screenshot drops (personal UI / EXIF)
+/docs/screenshots/_incoming/
+
 # Secrets / local config
 local.properties
 **/key.properties

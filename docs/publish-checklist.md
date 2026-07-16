@@ -91,7 +91,7 @@ Future CI (out of scope here): App Store Connect API key, distribution cert / pr
 
 - In-app Settings states the app is not affiliated with Panini or FIFA
 - Cover-side art and WC marks: confirm trademark/license before store screenshots that feature them
-- Proprietary LICENSE — not open source
+- Source is **MIT** ([LICENSE](../LICENSE))
 
 ## Pre-upload verification
 

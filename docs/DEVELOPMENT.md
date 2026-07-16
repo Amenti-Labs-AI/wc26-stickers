@@ -120,4 +120,4 @@ Platform roots (`ios/Runner`, `android/app`, …) are **symlinks** into `src/` f
 
 ## License
 
-[Proprietary](../LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/). All rights reserved.
+[MIT](../LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/).

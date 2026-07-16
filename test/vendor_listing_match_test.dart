@@ -68,4 +68,58 @@ ARG99 - 2 not in need
       expect(needCodesInVendorListing(listing, const []), isEmpty);
     });
   });
+
+  group('needCodesInVendorListing team slot lists', () {
+    final needStickers = [
+      _sticker(code: 'MEX3', teamCode: 'MEX', slotNumber: 3),
+      _sticker(code: 'MEX1', teamCode: 'MEX', slotNumber: 1),
+      _sticker(code: 'QAT1', teamCode: 'QAT', slotNumber: 1),
+      _sticker(code: 'RSA20', teamCode: 'RSA', slotNumber: 20),
+      _sticker(code: 'ARG17', teamCode: 'ARG', slotNumber: 17),
+    ];
+
+    test('expands TEAM: 1, 2, 3 with blank lines between teams', () {
+      const listing = '''
+MEX: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+
+RSA: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+
+QAT: 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20
+''';
+      final matches = needCodesInVendorListing(listing, needStickers);
+      expect(matches, ['MEX1', 'MEX3', 'QAT1', 'RSA20']);
+      expect(matches, isNot(contains('ARG17')));
+    });
+
+    test('accepts compact commas without spaces', () {
+      const spaced = 'MEX: 1, 2, 3';
+      const compact = 'MEX: 1,2,3';
+      expect(
+        needCodesInVendorListing(spaced, needStickers),
+        needCodesInVendorListing(compact, needStickers),
+      );
+      expect(needCodesInVendorListing(compact, needStickers), ['MEX1', 'MEX3']);
+    });
+
+    test('newlines between teams do not change matches', () {
+      const withBreaks = 'MEX: 1, 2, 3\n\n\nQAT: 1';
+      const compact = 'MEX: 1, 2, 3 QAT: 1';
+      expect(
+        needCodesInVendorListing(withBreaks, needStickers),
+        needCodesInVendorListing(compact, needStickers),
+      );
+    });
+
+    test('unions colon lists with glued sticker codes', () {
+      const listing = '''
+MEX: 1,2,3
+SCO12 - 1 blabla
+''';
+      final need = [
+        ...needStickers,
+        _sticker(code: 'SCO12', teamCode: 'SCO', slotNumber: 12),
+      ];
+      expect(needCodesInVendorListing(listing, need), ['MEX1', 'MEX3', 'SCO12']);
+    });
+  });
 }

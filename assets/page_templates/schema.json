@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://amentilabs.local/panini-wc26/page-template.schema.json",
-  "title": "Panini WC26 album page template",
+  "$id": "https://amentilabs.dev/schemas/wc26-page-template.schema.json",
+  "title": "WC26 album page template",
   "description": "Normalized slot layout for a single album spread. Coordinates are fractions of page width/height (0–1). Consumed by lib/ml/page_scan_service.dart.",
   "type": "object",
   "required": ["id", "team_code", "team_name", "layout", "slots"],

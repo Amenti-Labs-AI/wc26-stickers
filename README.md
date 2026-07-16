@@ -96,6 +96,6 @@ Store publish checklist: **[docs/publish-checklist.md](docs/publish-checklist.md
 
 ## License
 
-[Proprietary](LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/). All rights reserved.
+[MIT](LICENSE) — Copyright © 2026 [Amenti Labs, LLC](https://amentilabs.dev/).
 
-Source and binaries are not open source. Panini, FIFA, and related album artwork and trademarks belong to their respective owners; this app is unaffiliated.
+Panini, FIFA, and related album artwork and trademarks belong to their respective owners; this app is unaffiliated.

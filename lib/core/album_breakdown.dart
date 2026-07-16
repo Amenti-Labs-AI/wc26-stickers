@@ -174,12 +174,34 @@ String formatNeedExportFromTeams(
 ) =>
     formatNeedExport(teams.expand((e) => e.value));
 
+/// Vendor paste formats: glued codes (`MEX1`) and team slot lists (`MEX: 1, 2, 3`
+/// or `MEX: 1,2,3`). Newlines between teams are ignored.
+final _vendorTeamSlotList = RegExp(
+  r'\b([A-Z]{2,3})\s*:\s*(\d{1,2}(?:\s*,\s*\d{1,2})*)',
+);
+
+/// All sticker codes referenced in a vendor listing paste.
+Set<String> parseVendorListingCodes(String listing) {
+  final found = StickerCodeParser.parseAll(listing).toSet();
+  final upper = listing.toUpperCase();
+  for (final match in _vendorTeamSlotList.allMatches(upper)) {
+    final team = match.group(1)!;
+    final slots = match.group(2)!;
+    for (final part in slots.split(',')) {
+      final slot = part.trim();
+      if (slot.isEmpty) continue;
+      found.add('$team$slot');
+    }
+  }
+  return found;
+}
+
 /// Sticker codes from [listing] that are also in [needStickers], sorted like need export.
 List<String> needCodesInVendorListing(
   String listing,
   Iterable<Sticker> needStickers,
 ) {
-  final found = StickerCodeParser.parseAll(listing).toSet();
+  final found = parseVendorListingCodes(listing);
   final matched = needStickers
       .where((s) => found.contains(s.code.toUpperCase()))
       .toList()
