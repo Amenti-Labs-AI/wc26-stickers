@@ -36,10 +36,10 @@ Future<List<OcrTextLine>?> ocrLiveCameraLines(
 
   try {
     if (Platform.isAndroid && payload.formatName == 'nv21') {
-      return _ocrAndroidNv21(recognizer, payload);
+      return await _ocrAndroidNv21(recognizer, payload);
     }
     if (Platform.isIOS && payload.formatName == 'bgra8888') {
-      return _ocrIosBgra(recognizer, payload);
+      return await _ocrIosBgra(recognizer, payload);
     }
   } catch (_) {
     return null;
